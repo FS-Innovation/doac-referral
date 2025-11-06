@@ -1,0 +1,6 @@
+{
+  "version": 2,
+  "buildCommand": "npm install --prefix frontend && cd frontend && npm run build",
+  "outputDirectory": "frontend/build",
+  "installCommand": "echo 'Skipping root install'"
+}
