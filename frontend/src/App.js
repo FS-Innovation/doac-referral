@@ -1,0 +1,107 @@
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import Navbar from './components/Navbar';
+import PrivateRoute from './components/PrivateRoute';
+
+// User pages
+import Landing from './pages/Landing';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Dashboard from './pages/Dashboard';
+import Products from './pages/Products';
+import ReferralRedirect from './pages/ReferralRedirect';
+
+// Admin pages
+import AdminDashboard from './pages/admin/AdminDashboard';
+import ProductManagement from './pages/admin/ProductManagement';
+import UserManagement from './pages/admin/UserManagement';
+import Settings from './pages/admin/Settings';
+
+function AppContent() {
+  const location = useLocation();
+  const { isAuthenticated } = useAuth();
+
+  // Don't show navbar on landing page or if not authenticated
+  const showNavbar = isAuthenticated && location.pathname !== '/';
+
+  return (
+    <div className="App">
+      {showNavbar && <Navbar />}
+      <Routes>
+        {/* Public routes */}
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/r/:code" element={<ReferralRedirect />} />
+
+        {/* Protected user routes */}
+        <Route
+          path="/dashboard"
+          element={
+            <PrivateRoute>
+              <Dashboard />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/products"
+          element={
+            <PrivateRoute>
+              <Products />
+            </PrivateRoute>
+          }
+        />
+
+        {/* Protected admin routes */}
+        <Route
+          path="/admin"
+          element={
+            <PrivateRoute adminOnly>
+              <AdminDashboard />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/products"
+          element={
+            <PrivateRoute adminOnly>
+              <ProductManagement />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <PrivateRoute adminOnly>
+              <UserManagement />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/settings"
+          element={
+            <PrivateRoute adminOnly>
+              <Settings />
+            </PrivateRoute>
+          }
+        />
+
+        {/* 404 fallback */}
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </Router>
+  );
+}
+
+export default App;

@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/health", "destination": "/api" },
+    { "source": "/r/:code", "destination": "/api" }
+  ],
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/build",
+  "installCommand": "npm install --prefix backend && npm install --prefix frontend"
+}
