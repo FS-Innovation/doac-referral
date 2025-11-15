@@ -1,0 +1,136 @@
+# Cloud Run service configuration
+# This file defines the production deployment settings
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: doac-referral-backend
+  labels:
+    app: doac-referral
+    tier: backend
+    environment: production
+spec:
+  template:
+    metadata:
+      annotations:
+        # Auto-scaling configuration
+        autoscaling.knative.dev/minScale: "1"    # Keep 1 instance warm (no cold starts)
+        autoscaling.knative.dev/maxScale: "20"   # Max 20 instances
+        autoscaling.knative.dev/target: "80"     # Target 80 concurrent requests per instance
+
+        # Resource limits
+        run.googleapis.com/cpu-throttling: "false"  # Always allocate CPU
+        run.googleapis.com/startup-cpu-boost: "true" # Fast cold starts
+
+        # VPC connector (for Cloud SQL private IP)
+        run.googleapis.com/vpc-access-connector: projects/PROJECT_ID/locations/us-central1/connectors/vpc-connector
+        run.googleapis.com/vpc-access-egress: private-ranges-only
+
+        # Cloud SQL connection
+        run.googleapis.com/cloudsql-instances: PROJECT_ID:us-central1:doac-referral-db
+
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      serviceAccountName: doac-referral-backend@PROJECT_ID.iam.gserviceaccount.com
+
+      containers:
+      - image: gcr.io/PROJECT_ID/doac-referral-backend:latest
+        ports:
+        - name: http1
+          containerPort: 8080
+
+        resources:
+          limits:
+            cpu: "1000m"
+            memory: "512Mi"
+          requests:
+            cpu: "500m"
+            memory: "256Mi"
+
+        env:
+        # Application settings
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+
+        # Database connection (from Secret Manager)
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: database-url
+              key: latest
+
+        # JWT secret (from Secret Manager)
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: jwt-secret
+              key: latest
+
+        # Redis connection
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: redis-url
+              key: latest
+
+        # Email configuration
+        - name: EMAIL_HOST
+          value: "smtp.gmail.com"
+        - name: EMAIL_PORT
+          value: "587"
+        - name: EMAIL_USER
+          valueFrom:
+            secretKeyRef:
+              name: email-user
+              key: latest
+        - name: EMAIL_PASS
+          valueFrom:
+            secretKeyRef:
+              name: email-pass
+              key: latest
+        - name: ADMIN_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: admin-email
+              key: latest
+
+        # Frontend URL (Firebase Hosting)
+        - name: FRONTEND_URL
+          value: "https://doac-referral.web.app"
+
+        # Default redirect URL
+        - name: DEFAULT_REDIRECT_URL
+          value: "https://doac-referral.web.app"
+
+        # Startup and liveness probes
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 3
+          timeoutSeconds: 2
+          failureThreshold: 10
+
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          periodSeconds: 10
+          timeoutSeconds: 2
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          periodSeconds: 5
+          timeoutSeconds: 2
+          failureThreshold: 2
+
+  traffic:
+  - percent: 100
+    latestRevision: true

@@ -1,0 +1,4 @@
+# Locust Load Testing Requirements
+locust==2.20.0
+pyzmq==25.1.2
+gevent==23.9.1
