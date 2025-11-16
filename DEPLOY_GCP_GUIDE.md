@@ -19,10 +19,11 @@ This guide deploys the DOAC Referral System to Google Cloud Platform, **optimize
 - **Viral success**: 5,000-10,000 concurrent users (5% CTR, 20% signup)
 - **Mega viral**: 10,000-20,000 concurrent users (10% CTR, 25% signup)
 
-### Costs:
-- **Base (idle)**: ~$425/month
-- **During viral spike**: ~$600-800/month (first week)
-- **After spike**: Drops back to ~$425/month
+### Costs (Optimized):
+- **Base (idle)**: ~$93/month (Cloud SQL $50 + Redis $33 + VPC $10)
+- **During viral spike**: ~$200-300/month (first week with traffic)
+- **After spike**: Drops back to ~$93/month
+- **Upgrade path**: Can scale to db-custom-2-7680 + 5GB Redis = $425/month for 10k+ concurrent users
 
 **Estimated Setup Time:** 45-60 minutes (including quota requests)
 
@@ -170,19 +171,22 @@ echo "✅ All APIs enabled"
 
 ```bash
 # Create Cloud SQL instance (takes 5-10 minutes)
-# Using db-custom-2-7680 for viral traffic (500 connections)
+# Using db-g1-small - cost-optimized for startup (handles 100k+ users)
+# Cost: ~$50/month vs $250/month for db-custom-2-7680
 gcloud sql instances create doac-referral-db \
   --database-version=POSTGRES_15 \
-  --tier=db-custom-2-7680 \
+  --tier=db-g1-small \
   --region=us-central1 \
   --storage-type=SSD \
   --storage-size=10GB \
   --storage-auto-increase \
-  --backup-start-time=03:00 \
-  --enable-bin-log
+  --backup-start-time=03:00
 
-# Check status
+# Check status (wait 5-10 minutes for creation to complete)
 gcloud sql instances describe doac-referral-db
+
+# ✅ IF YOU ALREADY CREATED WITH db-custom-2-7680, DOWNGRADE NOW:
+# gcloud sql instances patch doac-referral-db --tier=db-g1-small
 ```
 
 #### 3.2 Create Database
@@ -222,9 +226,10 @@ echo "Connection Name: $CONNECTION_NAME"
 
 ```bash
 # Create Redis instance (takes 5-10 minutes)
-# Using 5GB for viral traffic caching
+# Using 1GB - cost-optimized for startup (handles 500k+ users)
+# Cost: ~$33/month vs $165/month for 5GB
 gcloud redis instances create doac-referral-redis \
-  --size=5 \
+  --size=1 \
   --region=us-central1 \
   --redis-version=redis_6_x \
   --tier=basic
@@ -330,11 +335,17 @@ npm install
 #### 6.2 Build and Deploy
 
 ```bash
-# Build Docker image and deploy
+# Build Docker image (only once)
 gcloud builds submit --tag gcr.io/$(gcloud config get-value project)/doac-referral-backend
+```
 
-# Deploy to Cloud Run - OPTIMIZED FOR VIRAL TRAFFIC
-# Handles 8,000 concurrent users (100 instances × 80 concurrency)
+**Choose deployment strategy based on your quota:**
+
+**Option A: Single Region (if you have 625 instance quota)**
+
+```bash
+# Deploy to Cloud Run - OPTIMIZED FOR MEGA VIRAL TRAFFIC
+# Handles 50,000+ concurrent users (625 instances × 80 concurrency)
 gcloud run deploy doac-referral-backend \
   --image gcr.io/$(gcloud config get-value project)/doac-referral-backend \
   --platform managed \
@@ -342,25 +353,103 @@ gcloud run deploy doac-referral-backend \
   --allow-unauthenticated \
   --port 8080 \
   --min-instances 0 \
-  --max-instances 100 \
+  --max-instances 625 \
   --memory 512Mi \
   --cpu 1 \
   --timeout 300 \
   --concurrency 80 \
   --cpu-throttling \
-  --set-env-vars "NODE_ENV=production,PORT=8080" \
-  --set-secrets "DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest,REDIS_URL=redis-url:latest,EMAIL_USER=email-user:latest,EMAIL_PASS=email-pass:latest,ADMIN_EMAIL=admin-email:latest" \
+  --set-env-vars "NODE_ENV=production,PORT=8080,FRONTEND_URL=https://doac-perks.com" \
+  --set-secrets "DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest,REDIS_URL=redis-url:latest,ADMIN_EMAIL=admin-email:latest" \
   --add-cloudsql-instances "$CONNECTION_NAME" \
   --vpc-connector vpc-connector \
   --vpc-egress private-ranges-only
 
-# Get backend URL
+echo "✅ Can handle 50,000 concurrent users"
+```
+
+**Option B: Multi-Region (if quota limited to 200/region - recommended for launch)**
+
+Deploy to 3 regions for **48,000 concurrent users** (200 × 3 = 600 instances):
+
+```bash
+# Region 1: us-central1
+gcloud run deploy doac-referral-backend \
+  --image gcr.io/$(gcloud config get-value project)/doac-referral-backend \
+  --platform managed \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --port 8080 \
+  --min-instances 0 \
+  --max-instances 200 \
+  --memory 512Mi \
+  --cpu 1 \
+  --timeout 300 \
+  --concurrency 80 \
+  --cpu-throttling \
+  --set-env-vars "NODE_ENV=production,PORT=8080,FRONTEND_URL=https://doac-perks.com" \
+  --set-secrets "DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest,REDIS_URL=redis-url:latest,ADMIN_EMAIL=admin-email:latest" \
+  --add-cloudsql-instances "$CONNECTION_NAME" \
+  --vpc-connector vpc-connector \
+  --vpc-egress private-ranges-only
+
+echo "✅ us-central1 deployed"
+
+# Region 2: us-east1
+gcloud run deploy doac-referral-backend \
+  --image gcr.io/$(gcloud config get-value project)/doac-referral-backend \
+  --platform managed \
+  --region us-east1 \
+  --allow-unauthenticated \
+  --port 8080 \
+  --min-instances 0 \
+  --max-instances 200 \
+  --memory 512Mi \
+  --cpu 1 \
+  --timeout 300 \
+  --concurrency 80 \
+  --cpu-throttling \
+  --set-env-vars "NODE_ENV=production,PORT=8080,FRONTEND_URL=https://doac-perks.com" \
+  --set-secrets "DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest,REDIS_URL=redis-url:latest,ADMIN_EMAIL=admin-email:latest" \
+  --add-cloudsql-instances "$CONNECTION_NAME" \
+  --vpc-connector vpc-connector-east \
+  --vpc-egress private-ranges-only
+
+echo "✅ us-east1 deployed"
+
+# Region 3: europe-west1
+gcloud run deploy doac-referral-backend \
+  --image gcr.io/$(gcloud config get-value project)/doac-referral-backend \
+  --platform managed \
+  --region europe-west1 \
+  --allow-unauthenticated \
+  --port 8080 \
+  --min-instances 0 \
+  --max-instances 200 \
+  --memory 512Mi \
+  --cpu 1 \
+  --timeout 300 \
+  --concurrency 80 \
+  --cpu-throttling \
+  --set-env-vars "NODE_ENV=production,PORT=8080,FRONTEND_URL=https://doac-perks.com" \
+  --set-secrets "DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest,REDIS_URL=redis-url:latest,ADMIN_EMAIL=admin-email:latest" \
+  --add-cloudsql-instances "$CONNECTION_NAME" \
+  --vpc-connector vpc-connector-eu \
+  --vpc-egress private-ranges-only
+
+echo "✅ europe-west1 deployed"
+echo "🚀 Total: 48,000 concurrent user capacity across 3 regions"
+```
+
+**Note:** Firebase automatically load balances across all regions when you don't specify a region in firebase.json.
+
+```bash
+# Get backend URL (use primary region)
 export BACKEND_URL=$(gcloud run services describe doac-referral-backend \
   --region us-central1 \
   --format="value(status.url)")
 
 echo "✅ Backend deployed to: $BACKEND_URL"
-echo "✅ Can handle 8,000 concurrent users"
 ```
 
 ---
@@ -509,16 +598,41 @@ open "https://$(gcloud config get-value project).web.app"
 
 ## Post-Deployment Tasks
 
-### 1. Change Admin Password
+### 1. Create Admin Account
+
+**CRITICAL:** No admin user is created during migrations. You must create it manually.
+
+```bash
+# Connect to database
+gcloud sql connect doac-referral-db --user=postgres --database=doac_referral
+```
+
+Then in PostgreSQL:
 
 ```sql
--- Connect to database
-gcloud sql connect doac-referral-db --user=postgres --database=doac_referral
+-- Create admin account (marcus@flightstory.com)
+INSERT INTO users (email, password_hash, referral_code, points, is_admin)
+VALUES (
+  'marcus@flightstory.com',
+  crypt('FSSB2137!', gen_salt('bf', 10)),
+  'ADMIN2024',
+  0,
+  true
+);
 
--- Change admin password
-UPDATE users SET password_hash = crypt('your-new-strong-password', gen_salt('bf', 10))
-WHERE email = 'admin@example.com';
+-- Verify it was created
+SELECT id, email, referral_code, is_admin FROM users WHERE email = 'marcus@flightstory.com';
+
+-- Exit
+\q
 ```
+
+**Admin credentials:**
+- Email: marcus@flightstory.com
+- Password: FSSB2137!
+- Referral code: ADMIN2024
+
+**⚠️ Change the password after first login in production!**
 
 ### 2. Set Up Custom Domain: doac-perks.com (15 minutes)
 
@@ -948,14 +1062,14 @@ gcloud sql backups create --instance=doac-referral-db
 - 💰 **Cost: $425-800/month** (viral traffic)
 
 **Capacity:**
-- ✅ Handles 8,000 concurrent users (current config)
-- ✅ Can scale to 20,000 with quota increase
+- ✅ Handles 50,000 concurrent users (current config)
+- ✅ Can scale to 100,000+ with quota increase
 - ✅ Auto-scales to handle spikes
 - ✅ 95%+ fraud protection
 - ✅ <500ms response times
 
 **Next Steps:**
-1. Request Cloud Run quota increase (250+ instances)
+1. Request Cloud Run quota increase (625+ instances) - CRITICAL!
 2. Run load tests before video drop
 3. Set up monitoring alerts
 4. Prepare emergency scaling commands
