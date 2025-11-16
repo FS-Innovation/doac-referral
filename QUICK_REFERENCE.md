@@ -182,8 +182,39 @@ Fraud detection also tracks:
 - Duplicate clicks from same IP
 - Mass fraud (5+ different codes from same IP)
 
+## Fraud Protection
+
+**All fraud scenarios redirect to your YouTube video, just without awarding points.**
+
+This means:
+- ✅ Everyone gets to watch your content
+- ✅ Only legitimate clicks earn points
+- ✅ Great user experience + fraud prevention
+
+**Fraud Protection Features:**
+- Rate limiting: 1 click per IP per hour
+- Duplicate detection: 24 hour window
+- Bot detection: Blocks automated scripts
+- High velocity: Max 3 clicks/minute
+- Mass fraud: Max 5 different codes per hour
+
+**Set Your YouTube URL:**
+```bash
+# Via database
+docker exec -it doac-postgres psql -U doac_user -d referral_system
+
+UPDATE settings
+SET value = 'https://www.youtube.com/watch?v=YOUR_VIDEO_ID'
+WHERE key = 'redirect_url';
+```
+
+Or via Admin Dashboard → Settings → Update Redirect URL
+
+**Learn more:** [FRAUD_PROTECTION.md](FRAUD_PROTECTION.md)
+
 ## Need More Help?
 
 - Full guide: [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md)
 - Deployment: [QUICK_START.md](QUICK_START.md)
+- Fraud protection: [FRAUD_PROTECTION.md](FRAUD_PROTECTION.md)
 - Main docs: [README.md](README.md)

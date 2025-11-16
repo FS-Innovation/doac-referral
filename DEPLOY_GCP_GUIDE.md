@@ -1,10 +1,11 @@
 # Complete Google Cloud Platform Deployment Guide
 
-## Overview
+## Overview - Optimized for 13M Follower Campaign
 
-This guide will walk you through deploying the DOAC Referral System to Google Cloud Platform with:
+This guide deploys the DOAC Referral System to Google Cloud Platform, **optimized for viral video campaigns** with a 13M follower base.
 
-- ✅ **Cloud Run** - Auto-scaling backend (0-20 instances)
+### What This Handles:
+- ✅ **Cloud Run** - Auto-scaling backend (0-100 instances)
 - ✅ **Firebase Hosting** - Global CDN for React frontend
 - ✅ **Cloud SQL** - Managed PostgreSQL database
 - ✅ **Memorystore** - Redis caching layer
@@ -13,9 +14,17 @@ This guide will walk you through deploying the DOAC Referral System to Google Cl
 - ✅ **Zero downtime** - Rolling deployments
 - ✅ **Fraud protection** - Rate limiting + bot detection
 
-**Estimated Setup Time:** 30-45 minutes
-**Monthly Cost (1,000 users):** $50-100
-**Monthly Cost (10,000 users):** $200-400
+### Expected Traffic (13M Followers):
+- **Moderate success**: 2,000-5,000 concurrent users (2% CTR, 15% signup)
+- **Viral success**: 5,000-10,000 concurrent users (5% CTR, 20% signup)
+- **Mega viral**: 10,000-20,000 concurrent users (10% CTR, 25% signup)
+
+### Costs:
+- **Base (idle)**: ~$425/month
+- **During viral spike**: ~$600-800/month (first week)
+- **After spike**: Drops back to ~$425/month
+
+**Estimated Setup Time:** 45-60 minutes (including quota requests)
 
 ---
 
@@ -146,7 +155,11 @@ gcloud services enable \
   redis.googleapis.com \
   secretmanager.googleapis.com \
   compute.googleapis.com \
-  artifactregistry.googleapis.com
+  artifactregistry.googleapis.com \
+  vpcaccess.googleapis.com \
+  servicenetworking.googleapis.com
+
+echo "✅ All APIs enabled"
 ```
 
 ---
@@ -157,9 +170,10 @@ gcloud services enable \
 
 ```bash
 # Create Cloud SQL instance (takes 5-10 minutes)
+# Using db-custom-2-7680 for viral traffic (500 connections)
 gcloud sql instances create doac-referral-db \
   --database-version=POSTGRES_15 \
-  --tier=db-f1-micro \
+  --tier=db-custom-2-7680 \
   --region=us-central1 \
   --storage-type=SSD \
   --storage-size=10GB \
@@ -208,8 +222,9 @@ echo "Connection Name: $CONNECTION_NAME"
 
 ```bash
 # Create Redis instance (takes 5-10 minutes)
+# Using 5GB for viral traffic caching
 gcloud redis instances create doac-referral-redis \
-  --size=1 \
+  --size=5 \
   --region=us-central1 \
   --redis-version=redis_6_x \
   --tier=basic
@@ -225,6 +240,45 @@ export REDIS_PORT=$(gcloud redis instances describe doac-referral-redis \
 
 echo "Redis URL: redis://${REDIS_HOST}:${REDIS_PORT}"
 ```
+
+---
+
+### Step 4.5: Create VPC Access Connector (10 minutes) - CRITICAL
+
+**⚠️ REQUIRED FOR REDIS CONNECTIVITY**
+
+Cloud Run needs a VPC Access Connector to communicate with Memorystore Redis.
+
+```bash
+# Create VPC Access Connector
+# This allows Cloud Run to reach Redis on private network
+gcloud compute networks vpc-access connectors create vpc-connector \
+  --region=us-central1 \
+  --subnet=default \
+  --min-instances=2 \
+  --max-instances=10 \
+  --machine-type=e2-micro
+
+# Wait for connector to be ready (takes 5-10 minutes)
+echo "⏳ Waiting for VPC connector to be ready..."
+while [ "$(gcloud compute networks vpc-access connectors describe vpc-connector --region=us-central1 --format='value(state)')" != "READY" ]; do
+  echo "VPC connector status: $(gcloud compute networks vpc-access connectors describe vpc-connector --region=us-central1 --format='value(state)')"
+  sleep 10
+done
+
+echo "✅ VPC connector ready"
+
+# Verify connector
+gcloud compute networks vpc-access connectors describe vpc-connector \
+  --region=us-central1
+```
+
+**Cost:** ~$14/month for VPC connector (always running)
+
+**Why this is critical:**
+- Without VPC connector: Backend CANNOT connect to Redis
+- Without Redis: Rate limiting fails → Site crashes
+- This is NOT optional - your deployment will fail without it
 
 ---
 
@@ -279,22 +333,26 @@ npm install
 # Build Docker image and deploy
 gcloud builds submit --tag gcr.io/$(gcloud config get-value project)/doac-referral-backend
 
-# Deploy to Cloud Run
+# Deploy to Cloud Run - OPTIMIZED FOR VIRAL TRAFFIC
+# Handles 8,000 concurrent users (100 instances × 80 concurrency)
 gcloud run deploy doac-referral-backend \
   --image gcr.io/$(gcloud config get-value project)/doac-referral-backend \
   --platform managed \
   --region us-central1 \
   --allow-unauthenticated \
   --port 8080 \
-  --min-instances 1 \
-  --max-instances 20 \
+  --min-instances 0 \
+  --max-instances 100 \
   --memory 512Mi \
   --cpu 1 \
   --timeout 300 \
   --concurrency 80 \
+  --cpu-throttling \
   --set-env-vars "NODE_ENV=production,PORT=8080" \
   --set-secrets "DATABASE_URL=database-url:latest,JWT_SECRET=jwt-secret:latest,REDIS_URL=redis-url:latest,EMAIL_USER=email-user:latest,EMAIL_PASS=email-pass:latest,ADMIN_EMAIL=admin-email:latest" \
-  --add-cloudsql-instances "$CONNECTION_NAME"
+  --add-cloudsql-instances "$CONNECTION_NAME" \
+  --vpc-connector vpc-connector \
+  --vpc-egress private-ranges-only
 
 # Get backend URL
 export BACKEND_URL=$(gcloud run services describe doac-referral-backend \
@@ -302,6 +360,7 @@ export BACKEND_URL=$(gcloud run services describe doac-referral-backend \
   --format="value(status.url)")
 
 echo "✅ Backend deployed to: $BACKEND_URL"
+echo "✅ Can handle 8,000 concurrent users"
 ```
 
 ---
@@ -686,27 +745,28 @@ gcloud sql backups create --instance=doac-referral-db
 
 **Your application is now deployed with:**
 
-- 🚀 **Auto-scaling backend** (Cloud Run: 1-20 instances)
+- 🚀 **Auto-scaling backend** (Cloud Run: 0-100 instances)
 - 🌍 **Global CDN** (Firebase Hosting)
-- 💾 **Managed database** (Cloud SQL PostgreSQL)
-- 🔴 **Redis caching** (Memorystore)
+- 💾 **Managed database** (Cloud SQL PostgreSQL - 500 connections)
+- 🔴 **Redis caching** (Memorystore - 5GB)
 - 🔒 **Secure secrets** (Secret Manager)
 - 🛡️ **Fraud protection** (Rate limiting + bot detection)
 - 📊 **Monitoring** (Cloud Monitoring)
-- 💰 **Cost: $50-100/month** (1,000 users)
+- 💰 **Cost: $425-800/month** (viral traffic)
 
 **Capacity:**
-- ✅ Handles 10,000+ concurrent users
+- ✅ Handles 8,000 concurrent users (current config)
+- ✅ Can scale to 20,000 with quota increase
 - ✅ Auto-scales to handle spikes
 - ✅ 95%+ fraud protection
 - ✅ <500ms response times
 
 **Next Steps:**
-1. Run load tests
-2. Set up custom domain
-3. Configure monitoring alerts
-4. Schedule regular backups
-5. Plan scaling strategy
+1. Request Cloud Run quota increase (250+ instances)
+2. Run load tests before video drop
+3. Set up monitoring alerts
+4. Prepare emergency scaling commands
+5. Test referral system end-to-end
 
 ---
 

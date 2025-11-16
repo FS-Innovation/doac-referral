@@ -12,6 +12,25 @@ import { generalLimiter, authLimiter, adminLimiter } from './middleware/rateLimi
 
 dotenv.config();
 
+// CRITICAL: Validate required environment variables on startup
+const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET', 'REDIS_URL'];
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingEnvVars.length > 0) {
+  console.error('❌ FATAL: Missing required environment variables:');
+  missingEnvVars.forEach(varName => {
+    console.error(`   - ${varName}`);
+  });
+  console.error('\n💡 Required environment variables:');
+  console.error('   DATABASE_URL: PostgreSQL connection string');
+  console.error('   JWT_SECRET: Secret for JWT token signing');
+  console.error('   REDIS_URL: Redis connection string');
+  console.error('\n🔧 For Cloud Run, ensure secrets are properly configured.');
+  process.exit(1);
+}
+
+console.log('✅ All required environment variables are set');
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 
