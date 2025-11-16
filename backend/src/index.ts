@@ -9,7 +9,7 @@ import userRoutes from './routes/user';
 import productRoutes from './routes/product';
 import referralRoutes from './routes/referral';
 import adminRoutes from './routes/admin';
-import { generalLimiter, authLimiter, adminLimiter } from './middleware/rateLimiter';
+import { generalLimiter, loginLimiter, registerLimiter, adminLimiter } from './middleware/rateLimiter';
 
 dotenv.config();
 
@@ -61,7 +61,8 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Routes with rate limiting
-app.use('/api/auth', authLimiter, authRoutes);
+// Note: Auth routes have endpoint-specific rate limiting (login vs register)
+app.use('/api/auth', authRoutes);
 app.use('/api/user', generalLimiter, userRoutes);
 app.use('/api/products', generalLimiter, productRoutes);
 app.use('/api/referral', referralRoutes); // Has its own specific rate limiting

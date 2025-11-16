@@ -117,7 +117,8 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
       onClose();
       navigate('/dashboard');
     } catch (err) {
-      const errorMessage = err.response?.data?.error || err.message || 'Authentication failed';
+      // Display user-friendly error message from backend
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Authentication failed';
       setError(errorMessage);
     } finally {
       setLoading(false);

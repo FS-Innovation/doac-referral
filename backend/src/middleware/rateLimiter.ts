@@ -35,17 +35,50 @@ export const generalLimiter = rateLimit({
   },
 });
 
-// Strict limiter for authentication endpoints - 5 attempts per 15 minutes
-export const authLimiter = rateLimit({
+// Login limiter - 10 attempts per 15 minutes (industry standard)
+// Only counts FAILED login attempts, not successful ones
+export const loginLimiter = rateLimit({
   store: redisAvailable ? new RedisStore({
     // @ts-ignore
     sendCommand: (...args: any[]) => redisClient.call(...args),
-    prefix: 'rl:auth:',
+    prefix: 'rl:login:',
   }) : undefined,
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  message: 'Too many login attempts, please try again after 15 minutes.',
-  skipSuccessfulRequests: true, // Don't count successful requests
+  windowMs: 15 * 60 * 1000, // 15 minute window - resets automatically
+  max: process.env.NODE_ENV === 'development' ? 100 : 10, // 10 failed attempts in prod
+  skipSuccessfulRequests: true, // Only count failed login attempts
+  standardHeaders: true, // Send rate limit info in headers
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      error: 'Too many login attempts',
+      message: 'For security reasons, please wait 15 minutes before trying again. If you forgot your password, please use the password reset option.',
+      retryAfter: 900 // 15 minutes in seconds
+    });
+  },
+  skip: () => {
+    return !redisAvailable && process.env.NODE_ENV === 'production';
+  },
+});
+
+// Register limiter - Separate from login, more lenient
+// 5 registration attempts per hour (prevents spam accounts)
+export const registerLimiter = rateLimit({
+  store: redisAvailable ? new RedisStore({
+    // @ts-ignore
+    sendCommand: (...args: any[]) => redisClient.call(...args),
+    prefix: 'rl:register:',
+  }) : undefined,
+  windowMs: 60 * 60 * 1000, // 1 hour window
+  max: process.env.NODE_ENV === 'development' ? 100 : 5, // 5 registrations per hour
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      error: 'Too many registration attempts',
+      message: 'You can only create up to 5 accounts per hour from this connection. If you already have an account, please try logging in instead.',
+      retryAfter: 3600 // 1 hour in seconds
+    });
+  },
   skip: () => {
     return !redisAvailable && process.env.NODE_ENV === 'production';
   },

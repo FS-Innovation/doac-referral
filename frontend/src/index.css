@@ -621,13 +621,18 @@ table th {
   top: 100%;
   left: 0;
   right: 0;
-  margin-top: 6px;
+  margin-top: 8px;
   padding: 8px 12px;
   background: rgba(13, 13, 13, 0.98);
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   pointer-events: none;
   z-index: 10;
+}
+
+/* Add extra space when password strength indicator is shown */
+.form-group:has(.password-strength) {
+  margin-bottom: 45px;
 }
 
 .strength-bars {
