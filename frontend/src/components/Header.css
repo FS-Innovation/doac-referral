@@ -87,11 +87,11 @@
 @media (max-width: 768px) {
   .header-container {
     padding: 12px 16px;
-    height: 70px;
+    height: 60px;
   }
 
   .logo-image {
-    height: 50px;
+    height: 35px;
   }
 
   .header-right {
@@ -111,12 +111,12 @@
 
 @media (max-width: 480px) {
   .header-container {
-    padding: 10px 12px;
-    height: 65px;
+    padding: 8px 12px;
+    height: 56px;
   }
 
   .logo-image {
-    height: 45px;
+    height: 32px;
   }
 
   .header-right {

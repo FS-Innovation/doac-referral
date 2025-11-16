@@ -7,8 +7,8 @@ export const authenticateToken = (
   res: Response,
   next: NextFunction
 ) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  // Get token from HttpOnly cookie ONLY (maximum security)
+  const token = req.cookies?.auth_token;
 
   if (!token) {
     return res.status(401).json({ error: 'Access token required' });

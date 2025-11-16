@@ -76,11 +76,11 @@ export const trackReferralClick = async (req: Request, res: Response) => {
         redirectUrl = settingsResult.rows[0]?.value || process.env.DEFAULT_REDIRECT_URL || 'https://example.com';
 
         // Cache for 5 minutes
-        await redisClient.setex(redirectCacheKey, 300, redirectUrl);
+        await redisClient.setex(redirectCacheKey, 300, redirectUrl as string);
       }
 
       // Redirect to the configured URL
-      res.redirect(redirectUrl);
+      res.redirect(redirectUrl as string);
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;

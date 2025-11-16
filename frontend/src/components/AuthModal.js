@@ -44,19 +44,8 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
   };
 
   const isPasswordValid = (password) => {
-    // Password must be between 6-128 characters
+    // Password must be between 6-128 characters (minimum requirement only)
     if (!password || password.length < 6 || password.length > 128) return false;
-
-    // For registration, require strong password
-    if (mode === 'register') {
-      const hasUpperCase = /[A-Z]/.test(password);
-      const hasLowerCase = /[a-z]/.test(password);
-      const hasNumber = /[0-9]/.test(password);
-      const hasSymbol = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password);
-
-      return hasUpperCase && hasLowerCase && hasNumber && hasSymbol;
-    }
-
     return true;
   };
 
@@ -64,14 +53,6 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
     if (!password) return '';
     if (password.length < 6) return 'Password must be at least 6 characters';
     if (password.length > 128) return 'Password too long (max 128 characters)';
-
-    if (mode === 'register') {
-      if (!/[A-Z]/.test(password)) return 'Password must contain an uppercase letter';
-      if (!/[a-z]/.test(password)) return 'Password must contain a lowercase letter';
-      if (!/[0-9]/.test(password)) return 'Password must contain a number';
-      if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) return 'Password must contain a symbol';
-    }
-
     return '';
   };
 
@@ -246,19 +227,35 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
               </button>
             </div>
             {passwordError && <span className="error-text">{passwordError}</span>}
-            {mode === 'register' && password && (
-              <div className="password-strength">
-                <div className="strength-bars">
-                  <div className={`strength-bar ${password.length >= 6 ? 'active' : ''}`}></div>
-                  <div className={`strength-bar ${/[A-Z]/.test(password) && /[a-z]/.test(password) ? 'active' : ''}`}></div>
-                  <div className={`strength-bar ${/[0-9]/.test(password) ? 'active' : ''}`}></div>
-                  <div className={`strength-bar ${/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password) ? 'active' : ''}`}></div>
+            {mode === 'register' && password && password.length >= 1 && (() => {
+              // Calculate password strength (0-4)
+              let strength = 0;
+              if (password.length >= 8) strength++;
+              if (password.length >= 12) strength++;
+              if (/[A-Z]/.test(password) && /[a-z]/.test(password)) strength++;
+              if (/[0-9]/.test(password)) strength++;
+              if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) strength++;
+
+              // Cap at 4 for display
+              const displayStrength = Math.min(strength, 4);
+
+              // Determine color class
+              let strengthClass = 'weak';
+              if (displayStrength >= 4) strengthClass = 'strong';
+              else if (displayStrength >= 3) strengthClass = 'good';
+              else if (displayStrength >= 2) strengthClass = 'fair';
+
+              return (
+                <div className="password-strength">
+                  <div className="strength-bars">
+                    <div className={`strength-bar ${displayStrength >= 1 ? strengthClass : ''}`}></div>
+                    <div className={`strength-bar ${displayStrength >= 2 ? strengthClass : ''}`}></div>
+                    <div className={`strength-bar ${displayStrength >= 3 ? strengthClass : ''}`}></div>
+                    <div className={`strength-bar ${displayStrength >= 4 ? strengthClass : ''}`}></div>
+                  </div>
                 </div>
-                <span className="strength-text">
-                  Password must contain: uppercase, lowercase, number, and symbol (!@#$%^&*)
-                </span>
-              </div>
-            )}
+              );
+            })()}
           </div>
 
           {/* Confirm Password (Register only) */}

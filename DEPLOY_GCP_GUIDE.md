@@ -452,13 +452,25 @@ cd ..
 
 ### Step 9: Update CORS Settings (2 minutes)
 
-Update Cloud Run backend to allow Firebase Hosting domain:
+Update Cloud Run backend to allow your domain.
+
+**If you're setting up custom domain (doac-perks.com) immediately:**
+
+```bash
+gcloud run services update doac-referral-backend \
+  --region us-central1 \
+  --set-env-vars "FRONTEND_URL=https://doac-perks.com"
+```
+
+**If testing with Firebase default domain first:**
 
 ```bash
 gcloud run services update doac-referral-backend \
   --region us-central1 \
   --set-env-vars "FRONTEND_URL=https://$(gcloud config get-value project).web.app"
 ```
+
+**Note:** You'll update this again in Step 2.6 (Post-Deployment) when connecting your custom domain.
 
 ---
 
@@ -508,16 +520,197 @@ UPDATE users SET password_hash = crypt('your-new-strong-password', gen_salt('bf'
 WHERE email = 'admin@example.com';
 ```
 
-### 2. Set Up Custom Domain (Optional)
+### 2. Set Up Custom Domain: doac-perks.com (15 minutes)
 
-#### Firebase Hosting
+#### 2.1 Connect Domain to Firebase Hosting
+
+**Note:** You can use BOTH `doac-perks.com` and `www.doac-perks.com`
 
 ```bash
-# Add custom domain
-firebase hosting:channel:deploy production --domain your-domain.com
+# Add custom domain to Firebase
+firebase hosting:channel:deploy production --only hosting
+
+# In Firebase Console (easier method):
+# Go to: https://console.firebase.google.com/project/YOUR_PROJECT/hosting/sites
 ```
 
-Follow Firebase console instructions to configure DNS.
+**Or use Firebase Console (Recommended):**
+
+1. Go to Firebase Console → Hosting → Add custom domain
+2. Enter: `doac-perks.com`
+3. Click "Continue"
+4. Firebase will show you DNS records to add
+
+#### 2.2 Configure DNS Records
+
+Firebase will give you specific records. Here's what they'll look like:
+
+**If your domain registrar is GoDaddy, Namecheap, Cloudflare, etc:**
+
+Add these DNS records:
+
+**For apex domain (doac-perks.com):**
+```
+Type: A
+Name: @
+Value: 151.101.1.195
+TTL: 1 hour
+
+Type: A
+Name: @
+Value: 151.101.65.195
+TTL: 1 hour
+```
+
+**For www subdomain (www.doac-perks.com):**
+```
+Type: CNAME
+Name: www
+Value: doac-perks.web.app
+TTL: 1 hour
+```
+
+**TXT Record for verification:**
+```
+Type: TXT
+Name: @
+Value: (Firebase will provide this - copy exactly)
+TTL: 1 hour
+```
+
+#### 2.3 Provider-Specific Instructions
+
+**GoDaddy:**
+1. Go to: https://dcc.godaddy.com/domains
+2. Click on `doac-perks.com` → DNS
+3. Click "Add Record"
+4. Add each record above
+5. Wait 10-60 minutes for DNS propagation
+
+**Namecheap:**
+1. Go to: https://ap.www.namecheap.com/domains/list
+2. Click "Manage" next to `doac-perks.com`
+3. Go to "Advanced DNS" tab
+4. Add each record above
+5. Wait 10-60 minutes
+
+**Cloudflare:**
+1. Go to: https://dash.cloudflare.com
+2. Select `doac-perks.com`
+3. Go to DNS tab
+4. Add each record above
+5. **Important:** Set SSL/TLS mode to "Full" (not Flexible)
+6. Wait 5-30 minutes (Cloudflare is faster)
+
+**Google Domains:**
+1. Go to: https://domains.google.com/registrar
+2. Click `doac-perks.com` → DNS
+3. Go to "Custom records"
+4. Add each record above
+5. Wait 10-60 minutes
+
+#### 2.4 Wait for DNS Propagation
+
+```bash
+# Check DNS propagation (run every 5 minutes)
+dig doac-perks.com +short
+# Should show: 151.101.1.195 and 151.101.65.195
+
+dig www.doac-perks.com +short
+# Should show: doac-perks.web.app (and then the IPs)
+
+# Or use online tool:
+open "https://www.whatsmydns.net/#A/doac-perks.com"
+```
+
+**Typical wait times:**
+- Cloudflare: 5-30 minutes
+- Google Domains: 10-60 minutes
+- GoDaddy/Namecheap: 30-120 minutes
+- Other registrars: Up to 24 hours (rare)
+
+#### 2.5 Verify in Firebase
+
+Once DNS propagates:
+
+1. Go back to Firebase Console → Hosting
+2. Click "Continue" on the custom domain setup
+3. Firebase will verify ownership (using TXT record)
+4. Firebase will issue SSL certificate (takes 5-15 minutes)
+5. Status will change to "Connected" ✅
+
+#### 2.6 Update Backend CORS
+
+**Critical:** Update backend to allow your custom domain:
+
+```bash
+# Update Cloud Run to accept requests from doac-perks.com
+gcloud run services update doac-referral-backend \
+  --region us-central1 \
+  --set-env-vars "FRONTEND_URL=https://doac-perks.com"
+```
+
+#### 2.7 Test Your Custom Domain
+
+```bash
+# Wait 5 minutes after SSL certificate is issued, then:
+open "https://doac-perks.com"
+open "https://www.doac-perks.com"
+
+# Both should work and show your app! 🎉
+```
+
+#### 2.8 Set Up Redirect (www → apex)
+
+**Best practice:** Redirect `www.doac-perks.com` → `doac-perks.com`
+
+In Firebase Console:
+1. Hosting → Custom domains
+2. Click on `www.doac-perks.com`
+3. Select "Redirect to doac-perks.com"
+4. Save
+
+Or keep both working (your choice).
+
+#### 2.9 Verify HTTPS & Cookies
+
+**Test that HttpOnly cookies work on custom domain:**
+
+```bash
+# Open browser DevTools
+open "https://doac-perks.com"
+
+# Create account → Login
+# DevTools → Application → Cookies → https://doac-perks.com
+# Should see: auth_token (HttpOnly: ✓, Secure: ✓, SameSite: Strict)
+```
+
+✅ **Done!** Your site is now live at `https://doac-perks.com`
+
+---
+
+**Troubleshooting Custom Domain:**
+
+**Issue: "DNS not configured"**
+- Wait longer (can take up to 24 hours)
+- Verify DNS records are exact (no trailing dots, correct values)
+- Clear your local DNS cache: `sudo dscacheutil -flushcache`
+
+**Issue: "SSL certificate pending"**
+- Normal - takes 5-15 minutes after DNS verification
+- Can take up to 24 hours in rare cases
+- Certificate is auto-renewed by Firebase (free)
+
+**Issue: "Site loads but login doesn't work"**
+- Check backend CORS is set to `doac-perks.com`
+- Verify cookies are allowed in browser
+- Check cookie consent banner was accepted
+
+**Issue: "Mixed content warnings"**
+- Make sure backend URL uses HTTPS
+- Check all image URLs use HTTPS (your GCS bucket already does)
+
+---
 
 ### 3. Set Up Monitoring
 

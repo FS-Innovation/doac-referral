@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import Header from './components/Header';
+import CookieConsent from './components/CookieConsent';
 import PrivateRoute from './components/PrivateRoute';
 
 // User pages
@@ -10,6 +11,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
 import ReferralRedirect from './pages/ReferralRedirect';
+import CookiePolicy from './pages/CookiePolicy';
 
 // Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -32,6 +34,8 @@ function AppContent() {
         <Route path="/login" element={<Navigate to="/" replace />} />
         <Route path="/register" element={<Register />} />
         <Route path="/r/:code" element={<ReferralRedirect />} />
+        <Route path="/cookie-policy" element={<CookiePolicy />} />
+        <Route path="/privacy" element={<CookiePolicy />} /> {/* Temporary - create separate privacy page later */}
 
         {/* Protected user routes */}
         <Route
@@ -97,6 +101,7 @@ function App() {
     <Router>
       <AuthProvider>
         <AppContent />
+        <CookieConsent />
       </AuthProvider>
     </Router>
   );
