@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import AuthModal from '../components/AuthModal';
+import Header from '../components/Header';
 
 const Landing = () => {
   const [showModal, setShowModal] = useState(false);
@@ -16,11 +17,12 @@ const Landing = () => {
 
   return (
     <>
+      {showModal && <Header />}
       <div className="landing-page">
         <div className="landing-container">
           <div className="logo-container">
             <img
-              src="https://danielpriestley.com/wp-content/uploads/2025/01/doac-daniel-priestley.png"
+              src="https://storage.googleapis.com/doac-perks/e4e508a04084eee9320c875b55dca2cec34de30b.png"
               alt="DOAC Logo"
               className="landing-logo"
             />
@@ -41,9 +43,6 @@ const Landing = () => {
             </button>
           </div>
         </div>
-
-        {/* Background gradient */}
-        <div className="landing-gradient"></div>
       </div>
 
       {showModal && (

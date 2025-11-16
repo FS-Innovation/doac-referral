@@ -1,12 +1,11 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import Navbar from './components/Navbar';
+import { AuthProvider } from './context/AuthContext';
+import Header from './components/Header';
 import PrivateRoute from './components/PrivateRoute';
 
 // User pages
 import Landing from './pages/Landing';
-import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
@@ -20,18 +19,17 @@ import Settings from './pages/admin/Settings';
 
 function AppContent() {
   const location = useLocation();
-  const { isAuthenticated } = useAuth();
 
-  // Don't show navbar on landing page or if not authenticated
-  const showNavbar = isAuthenticated && location.pathname !== '/';
+  // Don't show header on landing page
+  const showHeader = location.pathname !== '/';
 
   return (
     <div className="App">
-      {showNavbar && <Navbar />}
+      {showHeader && <Header />}
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<Navigate to="/" replace />} />
         <Route path="/register" element={<Register />} />
         <Route path="/r/:code" element={<ReferralRedirect />} />
 
