@@ -9,6 +9,9 @@ import LoadingSpinner from './components/LoadingSpinner';
 import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import ReferralRedirect from './pages/ReferralRedirect';
+import CookiePolicy from './pages/CookiePolicy';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsConditions from './pages/TermsConditions';
 
 // Authenticated route wrapper - redirects to dashboard if logged in
 function AuthenticatedRoute({ children }) {
@@ -76,6 +79,11 @@ function AppContent() {
 
         {/* Referral redirect - public */}
         <Route path="/r/:code" element={<ReferralRedirect />} />
+
+        {/* Policy pages - public */}
+        <Route path="/cookie-policy" element={<CookiePolicy />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/terms-conditions" element={<TermsConditions />} />
 
         {/* Dashboard - only for authenticated users */}
         <Route

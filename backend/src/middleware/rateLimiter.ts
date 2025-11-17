@@ -84,7 +84,8 @@ export const registerLimiter = rateLimit({
   },
 });
 
-// CRITICAL: Referral click fraud protection - 1 click per IP per hour
+// CRITICAL: Referral click fraud protection - removed IP-only rate limiting
+// The fraud detection middleware handles device/fingerprint-based detection
 export const referralClickLimiter = rateLimit({
   store: redisAvailable ? new RedisStore({
     // @ts-ignore
@@ -92,12 +93,8 @@ export const referralClickLimiter = rateLimit({
     prefix: 'rl:referral:',
   }) : undefined,
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 1, // Only 1 referral click per IP per hour
-  message: 'You have already clicked this referral link recently. Please try again later.',
-  keyGenerator: (req: Request) => {
-    // Use IP address as key
-    return req.ip || req.socket.remoteAddress || 'unknown';
-  },
+  max: 100, // High limit - actual fraud prevention is done by device/fingerprint checks
+  message: 'Too many requests. Please try again later.',
   skip: (req: Request) => {
     // Skip rate limiting in development or if Redis is down
     return process.env.NODE_ENV === 'development' || (!redisAvailable && process.env.NODE_ENV === 'production');
@@ -120,41 +117,48 @@ export const detectReferralFraud = async (
   const userAgent = req.get('user-agent') || 'unknown';
   const { code } = req.params;
 
-  // Get device identifiers from headers (sent by frontend)
+  // Get all three device/browser identifiers from headers (sent by frontend)
   const deviceId = req.get('x-device-id') || '';
+  const deviceFingerprint = req.get('x-device-fingerprint') || '';
   const browserFingerprint = req.get('x-browser-fingerprint') || '';
 
   try {
-    // IMPORTANT: Track page load time for timing analysis
-    const pageLoadTime = req.get('x-page-load-time');
-    const timeOnPage = pageLoadTime ? parseInt(pageLoadTime, 10) : 0;
-
-    // Check for suspiciously fast clicks (bots click < 1 second after page load)
-    if (timeOnPage > 0 && timeOnPage < 1000) {
-      console.warn(`🚨 Suspicious: Too fast click (${timeOnPage}ms) from IP: ${ipAddress}`);
-      req.body.skipPointsAward = true;
-    }
-
     // Check 1: Device ID Detection (PRIMARY - Most persistent)
-    // Device ID is stored in localStorage and persists across sessions
-    // This is the BEST protection against VPN switchers while being GDPR-friendly
+    // Device ID is UUID stored in localStorage - persists across sessions
+    // One click per device ID per referral code per 24 hours
     if (deviceId && deviceId.length > 10) {
-      const deviceKey = `fraud:${code}:device:${deviceId}`;
+      const deviceKey = `fraud:${code}:deviceid:${deviceId}`;
       const deviceClicked = await redisClient.get(deviceKey);
 
       if (deviceClicked) {
-        console.warn(`🚨 DEVICE ID MATCH: Same device clicked again for code: ${code}`);
+        console.warn(`🚨 DUPLICATE CLICK: Same device ID clicked again within 24h for code: ${code}`);
         console.warn(`   Device ID: ${deviceId.substring(0, 16)}...`);
         console.warn(`   Current IP: ${ipAddress}, Previous IP: ${deviceClicked}`);
-        // Still redirect, but don't award points
         req.body.skipPointsAward = true;
       } else {
-        // Store device ID with current IP for 24 hours
         await redisClient.setex(deviceKey, 86400, ipAddress);
       }
     }
 
-    // Check 2: Suspicious user agent patterns (bots)
+    // Check 2: Device Fingerprint Detection (SECONDARY - Hardware based)
+    // Hardware fingerprint (GPU, CPU, screen) - changes only with hardware
+    // Catches users who clear localStorage but use same device
+    // One click per device fingerprint per referral code per 24 hours
+    if (deviceFingerprint && deviceFingerprint.length > 10) {
+      const deviceFpKey = `fraud:${code}:devicefp:${deviceFingerprint}`;
+      const deviceFpClicked = await redisClient.get(deviceFpKey);
+
+      if (deviceFpClicked) {
+        console.warn(`🚨 DUPLICATE CLICK: Same device hardware fingerprint within 24h for code: ${code}`);
+        console.warn(`   Device Fingerprint: ${deviceFingerprint.substring(0, 16)}...`);
+        console.warn(`   Current IP: ${ipAddress}, Previous IP: ${deviceFpClicked}`);
+        req.body.skipPointsAward = true;
+      } else {
+        await redisClient.setex(deviceFpKey, 86400, ipAddress);
+      }
+    }
+
+    // Check 3: Suspicious user agent patterns (bots)
     const botPatterns = [
       /bot/i,
       /crawl/i,
@@ -177,7 +181,7 @@ export const detectReferralFraud = async (
       req.body.skipPointsAward = true;
     }
 
-    // Check 3: Track click velocity per IP (multiple clicks in short time)
+    // Check 4: Track click velocity per IP (multiple clicks in short time)
     const velocityKey = `velocity:${ipAddress}`;
     const clickCount = await redisClient.incr(velocityKey);
 
@@ -193,14 +197,14 @@ export const detectReferralFraud = async (
       req.body.skipPointsAward = true;
     }
 
-    // Check 4: Browser Fingerprint Detection (BACKUP - Catches storage clearers)
-    // This catches VPN switchers - even if IP changes, fingerprint stays same
+    // Check 5: Browser Fingerprint Detection (TERTIARY - Software based)
+    // One click per browser fingerprint per referral code per 24 hours
     if (browserFingerprint && browserFingerprint.length > 10) {
       const fpKey = `fraud:${code}:fp:${browserFingerprint}`;
       const fpAlreadyClicked = await redisClient.get(fpKey);
 
       if (fpAlreadyClicked) {
-        console.warn(`🚨 VPN DETECTED: Same browser fingerprint with different IP for code: ${code}`);
+        console.warn(`🚨 DUPLICATE CLICK: Same browser fingerprint clicked again within 24h for code: ${code}`);
         console.warn(`   Fingerprint: ${browserFingerprint.substring(0, 16)}...`);
         console.warn(`   Current IP: ${ipAddress}, Previous IP: ${fpAlreadyClicked}`);
         // Still redirect, but don't award points
@@ -211,20 +215,11 @@ export const detectReferralFraud = async (
       }
     }
 
-    // Check 5: Traditional IP-based duplicate detection (TERTIARY - Fallback)
-    const codeIpKey = `fraud:${code}:${ipAddress}`;
-    const alreadyClicked = await redisClient.get(codeIpKey);
+    // Check 6: IP-based duplicate detection removed
+    // We rely on device ID, device fingerprint, and browser fingerprint instead
+    // This allows multiple people on same WiFi to click different referral links
 
-    if (alreadyClicked) {
-      console.warn(`⚠️  Duplicate click detected for code: ${code} from IP: ${ipAddress}`);
-      // Still redirect, but don't award points
-      req.body.skipPointsAward = true;
-    } else {
-      // Mark this IP as having clicked this code (expires in 24 hours)
-      await redisClient.setex(codeIpKey, 86400, '1');
-    }
-
-    // Check 6: Detect if same IP is clicking multiple different referral codes
+    // Check 7: Detect if same IP is clicking multiple different referral codes
     const ipClicksKey = `ipclicks:${ipAddress}`;
     await redisClient.sadd(ipClicksKey, code);
     await redisClient.expire(ipClicksKey, 3600); // 1 hour expiry

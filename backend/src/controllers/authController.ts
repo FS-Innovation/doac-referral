@@ -65,11 +65,13 @@ export const register = async (req: Request, res: Response) => {
     // Store user's fingerprints in Redis for self-click prevention (expires in 24 hours)
     const userIp = req.ip || req.socket.remoteAddress || 'unknown';
     const deviceId = req.get('x-device-id') || '';
+    const deviceFingerprint = req.get('x-device-fingerprint') || '';
     const browserFingerprint = req.get('x-browser-fingerprint') || '';
 
     await redisClient.setex(`user:${user.id}:ip`, 86400, userIp);
-    if (deviceId) await redisClient.setex(`user:${user.id}:device`, 86400, deviceId);
-    if (browserFingerprint) await redisClient.setex(`user:${user.id}:fingerprint`, 86400, browserFingerprint);
+    if (deviceId) await redisClient.setex(`user:${user.id}:deviceid`, 86400, deviceId);
+    if (deviceFingerprint) await redisClient.setex(`user:${user.id}:devicefp`, 86400, deviceFingerprint);
+    if (browserFingerprint) await redisClient.setex(`user:${user.id}:browserfp`, 86400, browserFingerprint);
 
     res.status(201).json({
       message: 'User created successfully',
@@ -135,11 +137,13 @@ export const login = async (req: Request, res: Response) => {
     // Store user's fingerprints in Redis for self-click prevention (expires in 24 hours)
     const userIp = req.ip || req.socket.remoteAddress || 'unknown';
     const deviceId = req.get('x-device-id') || '';
+    const deviceFingerprint = req.get('x-device-fingerprint') || '';
     const browserFingerprint = req.get('x-browser-fingerprint') || '';
 
     await redisClient.setex(`user:${user.id}:ip`, 86400, userIp);
-    if (deviceId) await redisClient.setex(`user:${user.id}:device`, 86400, deviceId);
-    if (browserFingerprint) await redisClient.setex(`user:${user.id}:fingerprint`, 86400, browserFingerprint);
+    if (deviceId) await redisClient.setex(`user:${user.id}:deviceid`, 86400, deviceId);
+    if (deviceFingerprint) await redisClient.setex(`user:${user.id}:devicefp`, 86400, deviceFingerprint);
+    if (browserFingerprint) await redisClient.setex(`user:${user.id}:browserfp`, 86400, browserFingerprint);
 
     res.json({
       message: 'Login successful',

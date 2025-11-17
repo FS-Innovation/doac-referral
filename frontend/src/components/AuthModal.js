@@ -337,11 +337,11 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
             {mode === 'register' ? (
               <>
                 By creating an account, you agree to our{' '}
-                <a href="/terms" className="footer-link" target="_blank" rel="noopener noreferrer">
-                  Terms of Service
+                <a href="/terms-conditions" className="footer-link" target="_blank" rel="noopener noreferrer">
+                  Terms & Conditions
                 </a>
                 {' '}and{' '}
-                <a href="/privacy" className="footer-link" target="_blank" rel="noopener noreferrer">
+                <a href="/privacy-policy" className="footer-link" target="_blank" rel="noopener noreferrer">
                   Privacy Policy
                 </a>
               </>

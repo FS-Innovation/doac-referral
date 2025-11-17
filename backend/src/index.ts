@@ -61,6 +61,11 @@ app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Root route (for load balancer health checks)
+app.get('/', (_req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 // Routes with rate limiting
 // Note: Auth routes have endpoint-specific rate limiting (login vs register)
 app.use('/api/auth', authRoutes);

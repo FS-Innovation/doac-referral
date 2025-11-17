@@ -40,37 +40,44 @@ export const trackReferralClick = async (req: Request, res: Response) => {
     console.log(`📍 Referral click from IP: ${ipAddress}, Code: ${code}`);
 
     // CRITICAL: Prevent self-clicking by comparing clicker's fingerprints with referral owner's
-    // Get device ID and browser fingerprint from headers (sent by frontend)
+    // Require BOTH IP + (device/fingerprint) match to avoid false positives (friends on same WiFi)
     const deviceId = req.get('x-device-id') || '';
+    const deviceFingerprint = req.get('x-device-fingerprint') || '';
     const browserFingerprint = req.get('x-browser-fingerprint') || '';
 
     // Check Redis for the owner's stored fingerprints (stored on login/activity)
     const ownerIpKey = `user:${userId}:ip`;
-    const ownerDeviceKey = `user:${userId}:device`;
-    const ownerFingerprintKey = `user:${userId}:fingerprint`;
+    const ownerDeviceIdKey = `user:${userId}:deviceid`;
+    const ownerDeviceFpKey = `user:${userId}:devicefp`;
+    const ownerBrowserFpKey = `user:${userId}:browserfp`;
 
     const ownerIp = await redisClient.get(ownerIpKey);
-    const ownerDevice = await redisClient.get(ownerDeviceKey);
-    const ownerFingerprint = await redisClient.get(ownerFingerprintKey);
+    const ownerDeviceId = await redisClient.get(ownerDeviceIdKey);
+    const ownerDeviceFp = await redisClient.get(ownerDeviceFpKey);
+    const ownerBrowserFp = await redisClient.get(ownerBrowserFpKey);
 
     let skipPointsAward = req.body.skipPointsAward === true;
 
-    // Multi-layered self-click detection (any match = self-click)
+    // Multi-layered self-click detection (INDUSTRY STANDARD)
+    // Require BOTH IP match AND (device ID OR device fingerprint OR browser fingerprint) match
     let selfClickReason = '';
 
-    // Check 1: IP match
-    if (ownerIp && ownerIp === ipAddress) {
-      selfClickReason = `IP match (${ipAddress})`;
-    }
+    const ipMatches = ownerIp && ownerIp === ipAddress;
+    const deviceIdMatches = ownerDeviceId && deviceId && ownerDeviceId === deviceId;
+    const deviceFpMatches = ownerDeviceFp && deviceFingerprint && ownerDeviceFp === deviceFingerprint;
+    const browserFpMatches = ownerBrowserFp && browserFingerprint && ownerBrowserFp === browserFingerprint;
 
-    // Check 2: Device ID match (most reliable - persists across sessions)
-    if (!selfClickReason && ownerDevice && deviceId && ownerDevice === deviceId) {
-      selfClickReason = `Device ID match (${deviceId.substring(0, 16)}...)`;
+    // Check 1: IP + Device ID match (most reliable - localStorage UUID)
+    if (ipMatches && deviceIdMatches) {
+      selfClickReason = `IP + Device ID match (${ipAddress}, ${deviceId.substring(0, 16)}...)`;
     }
-
-    // Check 3: Browser fingerprint match (catches VPN switchers)
-    if (!selfClickReason && ownerFingerprint && browserFingerprint && ownerFingerprint === browserFingerprint) {
-      selfClickReason = `Browser fingerprint match (${browserFingerprint.substring(0, 16)}...)`;
+    // Check 2: IP + Device Fingerprint match (catches localStorage clearers)
+    else if (ipMatches && deviceFpMatches) {
+      selfClickReason = `IP + Device fingerprint match (${ipAddress}, ${deviceFingerprint.substring(0, 16)}...)`;
+    }
+    // Check 3: IP + Browser Fingerprint match (catches different browsers on same device)
+    else if (ipMatches && browserFpMatches) {
+      selfClickReason = `IP + Browser fingerprint match (${ipAddress}, ${browserFingerprint.substring(0, 16)}...)`;
     }
 
     if (selfClickReason) {

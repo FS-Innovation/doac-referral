@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getDeviceId, getDeviceFingerprint, getBrowserFingerprint } from '../utils/fingerprint';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
@@ -9,6 +10,29 @@ const api = axios.create({
     'Content-Type': 'application/json'
   }
 });
+
+// Interceptor to add fingerprint headers to all requests
+api.interceptors.request.use(
+  async (config) => {
+    try {
+      // Add device/browser fingerprints to all requests for fraud detection
+      const deviceId = getDeviceId();
+      const deviceFingerprint = await getDeviceFingerprint();
+      const browserFingerprint = await getBrowserFingerprint();
+
+      config.headers['x-device-id'] = deviceId;
+      config.headers['x-device-fingerprint'] = deviceFingerprint;
+      config.headers['x-browser-fingerprint'] = browserFingerprint;
+    } catch (error) {
+      console.error('Error generating fingerprints:', error);
+      // Continue with request even if fingerprinting fails
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 // Handle 401 errors by redirecting to landing (but not during initial auth check)
 api.interceptors.response.use(
