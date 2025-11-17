@@ -42,7 +42,43 @@ const ReferralLanding = () => {
     setRedirecting(true);
     try {
       const response = await api.post('/referral/award-points', { code, platform });
-      window.location.href = response.data.redirectUrl;
+      const webUrl = response.data.webUrl;
+      const appUrl = response.data.redirectUrl;
+
+      // For mobile: Try app link with fallback using iframe (silent attempt)
+      if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        let didOpen = false;
+
+        // Create invisible iframe to attempt app launch (prevents error messages)
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = appUrl;
+        document.body.appendChild(iframe);
+
+        // Clean up iframe
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 100);
+
+        // Check if page became hidden (app opened)
+        const visibilityChange = () => {
+          if (document.hidden) {
+            didOpen = true;
+          }
+        };
+        document.addEventListener('visibilitychange', visibilityChange);
+
+        // Fallback to web URL after 2 seconds if app didn't open
+        setTimeout(() => {
+          document.removeEventListener('visibilitychange', visibilityChange);
+          if (!didOpen) {
+            window.location.href = webUrl;
+          }
+        }, 2000);
+      } else {
+        // Desktop: Use web URL directly (YouTube/Spotify apps auto-open from browser)
+        window.location.href = webUrl;
+      }
     } catch (err) {
       console.error('Failed to process click:', err);
       setError('Failed to redirect. Please try again.');
