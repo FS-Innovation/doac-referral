@@ -39,8 +39,44 @@ export const trackReferralClick = async (req: Request, res: Response) => {
     // Debug logging for IP detection
     console.log(`📍 Referral click from IP: ${ipAddress}, Code: ${code}`);
 
-    // Check if fraud detection middleware flagged this request
-    const skipPointsAward = req.body.skipPointsAward === true;
+    // CRITICAL: Prevent self-clicking by comparing clicker's fingerprints with referral owner's
+    // Get device ID and browser fingerprint from headers (sent by frontend)
+    const deviceId = req.get('x-device-id') || '';
+    const browserFingerprint = req.get('x-browser-fingerprint') || '';
+
+    // Check Redis for the owner's stored fingerprints (stored on login/activity)
+    const ownerIpKey = `user:${userId}:ip`;
+    const ownerDeviceKey = `user:${userId}:device`;
+    const ownerFingerprintKey = `user:${userId}:fingerprint`;
+
+    const ownerIp = await redisClient.get(ownerIpKey);
+    const ownerDevice = await redisClient.get(ownerDeviceKey);
+    const ownerFingerprint = await redisClient.get(ownerFingerprintKey);
+
+    let skipPointsAward = req.body.skipPointsAward === true;
+
+    // Multi-layered self-click detection (any match = self-click)
+    let selfClickReason = '';
+
+    // Check 1: IP match
+    if (ownerIp && ownerIp === ipAddress) {
+      selfClickReason = `IP match (${ipAddress})`;
+    }
+
+    // Check 2: Device ID match (most reliable - persists across sessions)
+    if (!selfClickReason && ownerDevice && deviceId && ownerDevice === deviceId) {
+      selfClickReason = `Device ID match (${deviceId.substring(0, 16)}...)`;
+    }
+
+    // Check 3: Browser fingerprint match (catches VPN switchers)
+    if (!selfClickReason && ownerFingerprint && browserFingerprint && ownerFingerprint === browserFingerprint) {
+      selfClickReason = `Browser fingerprint match (${browserFingerprint.substring(0, 16)}...)`;
+    }
+
+    if (selfClickReason) {
+      console.warn(`🚨 SELF-CLICK DETECTED: User ${userId} clicked their own referral link - ${selfClickReason}`);
+      skipPointsAward = true;
+    }
 
     // Start a transaction to ensure atomic operations
     const client = await pool.connect();

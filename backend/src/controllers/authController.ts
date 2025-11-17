@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { nanoid } from 'nanoid';
 import pool from '../config/database';
+import redisClient from '../config/redis';
 import { User } from '../types';
 
 export const register = async (req: Request, res: Response) => {
@@ -60,6 +61,15 @@ export const register = async (req: Request, res: Response) => {
       path: '/',
       domain: process.env.NODE_ENV === 'production' ? '.doac-perks.com' : undefined  // ✅ Share across subdomains
     });
+
+    // Store user's fingerprints in Redis for self-click prevention (expires in 24 hours)
+    const userIp = req.ip || req.socket.remoteAddress || 'unknown';
+    const deviceId = req.get('x-device-id') || '';
+    const browserFingerprint = req.get('x-browser-fingerprint') || '';
+
+    await redisClient.setex(`user:${user.id}:ip`, 86400, userIp);
+    if (deviceId) await redisClient.setex(`user:${user.id}:device`, 86400, deviceId);
+    if (browserFingerprint) await redisClient.setex(`user:${user.id}:fingerprint`, 86400, browserFingerprint);
 
     res.status(201).json({
       message: 'User created successfully',
@@ -121,6 +131,15 @@ export const login = async (req: Request, res: Response) => {
       path: '/',
       domain: process.env.NODE_ENV === 'production' ? '.doac-perks.com' : undefined  // ✅ Share across subdomains
     });
+
+    // Store user's fingerprints in Redis for self-click prevention (expires in 24 hours)
+    const userIp = req.ip || req.socket.remoteAddress || 'unknown';
+    const deviceId = req.get('x-device-id') || '';
+    const browserFingerprint = req.get('x-browser-fingerprint') || '';
+
+    await redisClient.setex(`user:${user.id}:ip`, 86400, userIp);
+    if (deviceId) await redisClient.setex(`user:${user.id}:device`, 86400, deviceId);
+    if (browserFingerprint) await redisClient.setex(`user:${user.id}:fingerprint`, 86400, browserFingerprint);
 
     res.json({
       message: 'Login successful',

@@ -20,12 +20,17 @@ const Landing = () => {
       {showModal && <Header />}
       <div className="landing-page">
         <div className="landing-container">
-          <div className="logo-container">
+          <div className="logo-container landing-logo-small">
             <img
               src="https://storage.googleapis.com/doac-perks/e4e508a04084eee9320c875b55dca2cec34de30b.png"
               alt="DOAC Logo"
               className="landing-logo"
             />
+          </div>
+
+          <div className="landing-copy">
+            <h2>Use your referral link to earn points</h2>
+            <p>Your unique referral link takes you directly to the latest episode of DOAC. Every time someone clicks on your link, you earn points. These points can then be used to redeem prizes</p>
           </div>
 
           <div className="glassmorphism-buttons">

@@ -36,8 +36,8 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 // Trust proxy (required for Cloud Run / Firebase Hosting / Load Balancer)
-// Set to true to trust all proxies in the chain (Firebase Hosting -> Load Balancer -> Cloud Run)
-app.set('trust proxy', true);
+// Trust the number of proxies between user and server (Firebase Hosting -> Load Balancer -> Cloud Run = 2 hops)
+app.set('trust proxy', 2);
 
 // Security middleware
 app.use(helmet({

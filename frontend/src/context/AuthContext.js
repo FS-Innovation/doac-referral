@@ -20,10 +20,21 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const loadingRef = useRef(false); // Prevent duplicate requests
   const retryTimeoutRef = useRef(null); // For retry mechanism
+  const retryCountRef = useRef(0); // Track retry attempts
+  const MAX_RETRIES = 3; // Maximum retry attempts
 
   useEffect(() => {
-    // Try to load user from cookie
-    loadUser();
+    // Skip auth check on referral redirect pages (e.g., /r/abc123)
+    // These users aren't logged in and just need to be redirected to the video
+    const isReferralRedirect = window.location.pathname.startsWith('/r/');
+
+    if (!isReferralRedirect) {
+      // Try to load user from cookie
+      loadUser();
+    } else {
+      // Immediately set loading to false for referral pages
+      setLoading(false);
+    }
 
     // Cleanup retry timeout on unmount
     return () => {
@@ -53,6 +64,9 @@ export const AuthProvider = ({ children }) => {
 
       setUser(userData);
 
+      // Reset retry counter on successful auth
+      retryCountRef.current = 0;
+
       // Store backup in sessionStorage (survives page refresh, cleared on tab close)
       saveSessionBackup(userData);
     } catch (error) {
@@ -66,15 +80,25 @@ export const AuthProvider = ({ children }) => {
           console.log('✅ Session recovered from backup');
           setUser(recoveredSession);
 
-          // Retry auth check after 5 seconds
-          retryTimeoutRef.current = setTimeout(() => {
-            console.log('Retrying auth check after rate limit...');
-            loadingRef.current = false;
-            loadUser();
-          }, 5000);
+          // Retry with exponential backoff (but only up to MAX_RETRIES times)
+          if (retryCountRef.current < MAX_RETRIES) {
+            retryCountRef.current += 1;
+            const backoffDelay = Math.min(5000 * Math.pow(2, retryCountRef.current - 1), 30000); // 5s, 10s, 20s (max 30s)
+            console.log(`Retrying auth check in ${backoffDelay / 1000}s (attempt ${retryCountRef.current}/${MAX_RETRIES})...`);
+
+            retryTimeoutRef.current = setTimeout(() => {
+              loadingRef.current = false;
+              loadUser();
+            }, backoffDelay);
+          } else {
+            console.warn('⚠️  Max retries reached - using cached session');
+            // Don't retry anymore, just use the cached session
+            retryCountRef.current = 0; // Reset for next time
+          }
         } else {
           console.error('❌ No session backup available, user must re-login');
           setUser(null);
+          retryCountRef.current = 0;
         }
       } else if (error.response?.status === 401 || error.response?.status === 403) {
         // 401/403 = NOT an error - just means user isn't logged in yet
