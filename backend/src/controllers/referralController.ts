@@ -36,6 +36,9 @@ export const trackReferralClick = async (req: Request, res: Response) => {
     const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
     const userAgent = req.get('user-agent') || 'unknown';
 
+    // Debug logging for IP detection
+    console.log(`📍 Referral click from IP: ${ipAddress}, Code: ${code}`);
+
     // Check if fraud detection middleware flagged this request
     const skipPointsAward = req.body.skipPointsAward === true;
 
@@ -64,23 +67,11 @@ export const trackReferralClick = async (req: Request, res: Response) => {
 
       await client.query('COMMIT');
 
-      // Get redirect URL from cache or database
-      const redirectCacheKey = 'setting:redirect_url';
-      let redirectUrl = await redisClient.get(redirectCacheKey);
-
-      if (!redirectUrl) {
-        const settingsResult = await pool.query(
-          "SELECT value FROM settings WHERE key = 'redirect_url'"
-        );
-
-        redirectUrl = settingsResult.rows[0]?.value || process.env.DEFAULT_REDIRECT_URL || 'https://youtu.be/qxxnRMT9C-8';
-
-        // Cache for 5 minutes
-        await redisClient.setex(redirectCacheKey, 300, redirectUrl as string);
-      }
+      // HARDCODED: Always redirect to YouTube video
+      const redirectUrl = 'https://youtu.be/qxxnRMT9C-8';
 
       // Redirect to the configured URL
-      res.redirect(redirectUrl as string);
+      res.redirect(redirectUrl);
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;

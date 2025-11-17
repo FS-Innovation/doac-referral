@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Header from './components/Header';
 import CookieConsent from './components/CookieConsent';
+import LoadingSpinner from './components/LoadingSpinner';
 
 // Pages
 import Landing from './pages/Landing';
@@ -14,7 +15,7 @@ function AuthenticatedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
-    return <div className="loading">Loading...</div>;
+    return <LoadingSpinner />;
   }
 
   // If authenticated, always go to dashboard
@@ -30,7 +31,7 @@ function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
-    return <div className="loading">Loading...</div>;
+    return <LoadingSpinner />;
   }
 
   // If not authenticated, go to landing page
@@ -46,7 +47,7 @@ function CatchAllRedirect() {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
-    return <div className="loading">Loading...</div>;
+    return <LoadingSpinner />;
   }
 
   return <Navigate to={isAuthenticated ? "/dashboard" : "/"} replace />;
