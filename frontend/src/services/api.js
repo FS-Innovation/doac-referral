@@ -56,10 +56,7 @@ export const authAPI = {
   register: (email, password) => api.post('/auth/register', { email, password }),
   login: (email, password) => api.post('/auth/login', { email, password }),
   logout: () => api.post('/auth/logout'),
-  getProfile: () => api.get('/auth/profile'),
-  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
-  verifyResetCode: (email, code) => api.post('/auth/verify-reset-code', { email, code }),
-  resetPassword: (resetToken, newPassword) => api.post('/auth/reset-password', { resetToken, newPassword })
+  getProfile: () => api.get('/auth/profile')
 };
 
 // User endpoints
