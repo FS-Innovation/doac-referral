@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { authAPI } from '../services/api';
 
 const AuthModal = ({ mode: initialMode, onClose }) => {
   const [mode, setMode] = useState(initialMode); // 'login', 'register'

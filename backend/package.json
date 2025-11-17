@@ -8,6 +8,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "migrate": "ts-node src/database/migrate.ts",
+    "clear-rate-limits": "ts-node src/scripts/clear-rate-limits.ts",
+    "flush-redis": "ts-node src/scripts/flush-redis.ts",
     "railway:build": "npm run build",
     "railway:start": "npm start"
   },
