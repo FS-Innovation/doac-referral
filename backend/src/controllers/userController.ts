@@ -36,8 +36,8 @@ export const getReferralStats = async (req: AuthRequest, res: Response) => {
       [userId]
     );
 
-    // Generate full referral URL
-    const referralUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/r/${referral_code}`;
+    // Generate full referral URL - PRODUCTION SAFE
+    const referralUrl = `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://doac-perks.com' : 'http://localhost:3000')}/r/${referral_code}`;
 
     res.json({
       referralCode: referral_code,

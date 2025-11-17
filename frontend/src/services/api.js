@@ -10,12 +10,17 @@ const api = axios.create({
   }
 });
 
-// Handle 401 errors by redirecting to landing
+// Handle 401 errors by redirecting to landing (but not during initial auth check)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Token expired or invalid - redirect to landing page
+    // CRITICAL FIX: Don't redirect on 401 during profile check (prevents infinite loop)
+    // Only redirect if it's NOT the initial auth check endpoint
+    const isProfileCheck = error.config?.url?.includes('/auth/profile');
+
+    if (error.response?.status === 401 && !isProfileCheck) {
+      // Token expired or invalid on a protected route - redirect to landing page
+      console.log('Authentication expired, redirecting to login...');
       window.location.href = '/';
     }
     return Promise.reject(error);

@@ -51,13 +51,14 @@ export const register = async (req: Request, res: Response) => {
       { expiresIn: '7d' }
     );
 
-    // Set HttpOnly cookie
+    // Set HttpOnly cookie with subdomain sharing (doac-perks.com + api.doac-perks.com)
     res.cookie('auth_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: '/'
+      httpOnly: true,                                    // ✅ JavaScript CANNOT access (XSS protection)
+      secure: process.env.NODE_ENV === 'production',   // ✅ HTTPS-only in production
+      sameSite: 'lax',                                  // ✅ CSRF protection (allows subdomain navigation)
+      maxAge: 7 * 24 * 60 * 60 * 1000,                 // 7 days
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? '.doac-perks.com' : undefined  // ✅ Share across subdomains
     });
 
     res.status(201).json({
@@ -111,13 +112,14 @@ export const login = async (req: Request, res: Response) => {
       { expiresIn: '7d' }
     );
 
-    // Set HttpOnly cookie
+    // Set HttpOnly cookie with subdomain sharing (doac-perks.com + api.doac-perks.com)
     res.cookie('auth_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: '/'
+      httpOnly: true,                                    // ✅ JavaScript CANNOT access (XSS protection)
+      secure: process.env.NODE_ENV === 'production',   // ✅ HTTPS-only in production
+      sameSite: 'lax',                                  // ✅ CSRF protection (allows subdomain navigation)
+      maxAge: 7 * 24 * 60 * 60 * 1000,                 // 7 days
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? '.doac-perks.com' : undefined  // ✅ Share across subdomains
     });
 
     res.json({
@@ -165,14 +167,15 @@ export const getProfile = async (req: Request, res: Response) => {
   }
 };
 
-export const logout = async (req: Request, res: Response) => {
+export const logout = async (_req: Request, res: Response) => {
   try {
-    // Clear the auth cookie
+    // Clear the auth cookie with matching settings
     res.clearCookie('auth_token', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/'
+      sameSite: 'lax',
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? '.doac-perks.com' : undefined
     });
 
     res.json({ message: 'Logged out successfully' });

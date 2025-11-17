@@ -1,4 +1,3 @@
-import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -9,12 +8,21 @@ const PrivateRoute = ({ children, adminOnly = false }) => {
     return <div className="loading">Loading...</div>;
   }
 
-  if (!user) {
-    return <Navigate to="/login" />;
+  // CRITICAL FIX: Validate user object has required data (not just truthy)
+  // Prevents access with incomplete/invalid user state
+  const isValidUser = user &&
+                      user.id &&
+                      user.email &&
+                      user.referralCode &&
+                      typeof user.points === 'number';
+
+  if (!isValidUser) {
+    console.log('Invalid or incomplete user session, redirecting to login');
+    return <Navigate to="/" replace />;
   }
 
   if (adminOnly && !isAdmin) {
-    return <Navigate to="/dashboard" />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;

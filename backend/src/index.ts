@@ -47,9 +47,9 @@ app.use(helmet({
 // Compression middleware
 app.use(compression());
 
-// CORS middleware
+// CORS middleware - PRODUCTION ONLY DEFAULTS
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://doac-perks.com' : 'http://localhost:3000'),
   credentials: true
 }));
 

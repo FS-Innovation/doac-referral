@@ -73,7 +73,7 @@ export const trackReferralClick = async (req: Request, res: Response) => {
           "SELECT value FROM settings WHERE key = 'redirect_url'"
         );
 
-        redirectUrl = settingsResult.rows[0]?.value || process.env.DEFAULT_REDIRECT_URL || 'https://example.com';
+        redirectUrl = settingsResult.rows[0]?.value || process.env.DEFAULT_REDIRECT_URL || 'https://youtu.be/qxxnRMT9C-8';
 
         // Cache for 5 minutes
         await redisClient.setex(redirectCacheKey, 300, redirectUrl as string);

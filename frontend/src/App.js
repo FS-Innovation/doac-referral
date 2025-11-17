@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import Header from './components/Header';
 import CookieConsent from './components/CookieConsent';
 import PrivateRoute from './components/PrivateRoute';
@@ -18,6 +18,18 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import ProductManagement from './pages/admin/ProductManagement';
 import UserManagement from './pages/admin/UserManagement';
 import Settings from './pages/admin/Settings';
+
+// 404 component that redirects based on auth status
+function NotFound() {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return <div className="loading">Loading...</div>;
+  }
+
+  // Redirect logged-in users to dashboard, others to landing
+  return <Navigate to={isAuthenticated ? "/dashboard" : "/"} replace />;
+}
 
 function AppContent() {
   const location = useLocation();
@@ -89,8 +101,8 @@ function AppContent() {
           }
         />
 
-        {/* 404 fallback */}
-        <Route path="*" element={<Navigate to="/" />} />
+        {/* 404 fallback - doesn't log users out */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </div>
   );

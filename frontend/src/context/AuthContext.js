@@ -1,7 +1,11 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import { createContext, useState, useContext, useEffect, useRef } from 'react';
 import { authAPI } from '../services/api';
 
 const AuthContext = createContext();
+
+// Session storage keys for persistence
+const SESSION_STORAGE_KEY = 'auth_session_backup';
+const SESSION_TIMESTAMP_KEY = 'auth_session_timestamp';
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -14,33 +18,163 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const loadingRef = useRef(false); // Prevent duplicate requests
+  const retryTimeoutRef = useRef(null); // For retry mechanism
 
   useEffect(() => {
     // Try to load user from cookie
     loadUser();
-  }, []);
+
+    // Cleanup retry timeout on unmount
+    return () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   const loadUser = async () => {
+    // Prevent duplicate calls (React Strict Mode + multiple component mounts)
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+
     try {
       const response = await authAPI.getProfile();
-      setUser(response.data);
+      const userData = response.data;
+
+      // FAANG-level: Validate response has required fields
+      if (!userData || !userData.id || !userData.email || !userData.referralCode) {
+        console.error('Invalid user data received from server');
+        setUser(null);
+        clearSessionBackup();
+        return;
+      }
+
+      setUser(userData);
+
+      // Store backup in sessionStorage (survives page refresh, cleared on tab close)
+      saveSessionBackup(userData);
     } catch (error) {
-      // No valid session - user not logged in
-      console.log('No active session');
+      // CRITICAL: Distinguish between different error types
+      if (error.response?.status === 429) {
+        console.warn('⚠️  Rate limit hit during auth check - attempting session recovery');
+
+        // Try to recover session from backup
+        const recoveredSession = recoverSessionFromBackup();
+        if (recoveredSession) {
+          console.log('✅ Session recovered from backup');
+          setUser(recoveredSession);
+
+          // Retry auth check after 5 seconds
+          retryTimeoutRef.current = setTimeout(() => {
+            console.log('Retrying auth check after rate limit...');
+            loadingRef.current = false;
+            loadUser();
+          }, 5000);
+        } else {
+          console.error('❌ No session backup available, user must re-login');
+          setUser(null);
+        }
+      } else if (error.response?.status === 401 || error.response?.status === 403) {
+        // 401/403 = NOT an error - just means user isn't logged in yet
+        // This is NORMAL and EXPECTED on landing page - silently handle
+        setUser(null);
+        clearSessionBackup();
+      } else {
+        // Network error or other issue - try session recovery
+        console.error('Auth check failed (network/server error):', error.message);
+        const recoveredSession = recoverSessionFromBackup();
+        if (recoveredSession) {
+          console.log('✅ Using cached session due to network error');
+          setUser(recoveredSession);
+        } else {
+          setUser(null);
+        }
+      }
     } finally {
       setLoading(false);
+      loadingRef.current = false;
+    }
+  };
+
+  // FAANG-level: Session backup for resilience
+  const saveSessionBackup = (userData) => {
+    try {
+      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(userData));
+      sessionStorage.setItem(SESSION_TIMESTAMP_KEY, Date.now().toString());
+    } catch (error) {
+      console.warn('Failed to save session backup:', error);
+    }
+  };
+
+  const recoverSessionFromBackup = () => {
+    try {
+      const backupData = sessionStorage.getItem(SESSION_STORAGE_KEY);
+      const timestamp = sessionStorage.getItem(SESSION_TIMESTAMP_KEY);
+
+      if (!backupData || !timestamp) return null;
+
+      // Only use backup if it's less than 1 hour old
+      const age = Date.now() - parseInt(timestamp, 10);
+      const MAX_AGE = 60 * 60 * 1000; // 1 hour
+
+      if (age > MAX_AGE) {
+        console.log('Session backup expired, clearing...');
+        clearSessionBackup();
+        return null;
+      }
+
+      const userData = JSON.parse(backupData);
+
+      // Validate backup has required fields
+      if (!userData || !userData.id || !userData.email || !userData.referralCode) {
+        console.warn('Invalid session backup data');
+        clearSessionBackup();
+        return null;
+      }
+
+      return userData;
+    } catch (error) {
+      console.warn('Failed to recover session backup:', error);
+      return null;
+    }
+  };
+
+  const clearSessionBackup = () => {
+    try {
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      sessionStorage.removeItem(SESSION_TIMESTAMP_KEY);
+    } catch (error) {
+      console.warn('Failed to clear session backup:', error);
     }
   };
 
   const login = async (email, password) => {
     const response = await authAPI.login(email, password);
-    setUser(response.data.user);
+    const userData = response.data.user;
+
+    // Validate user data before setting state
+    if (!userData || !userData.id || !userData.email || !userData.referralCode) {
+      throw new Error('Invalid user data received from server');
+    }
+
+    setUser(userData);
+    saveSessionBackup(userData);
     return response.data;
   };
 
   const register = async (email, password) => {
     const response = await authAPI.register(email, password);
-    setUser(response.data.user);
+    const userData = response.data.user;
+
+    // Validate user data before setting state
+    if (!userData || !userData.id || !userData.email || !userData.referralCode) {
+      throw new Error('Invalid user data received from server');
+    }
+
+    setUser(userData);
+    saveSessionBackup(userData);
     return response.data;
   };
 
@@ -51,6 +185,7 @@ export const AuthProvider = ({ children }) => {
       console.error('Logout error:', error);
     } finally {
       setUser(null);
+      clearSessionBackup();
     }
   };
 
