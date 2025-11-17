@@ -9,6 +9,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import ReferralRedirect from './pages/ReferralRedirect';
+import ReferralLanding from './pages/ReferralLanding';
 import CookiePolicy from './pages/CookiePolicy';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsConditions from './pages/TermsConditions';
@@ -79,6 +80,9 @@ function AppContent() {
 
         {/* Referral redirect - public */}
         <Route path="/r/:code" element={<ReferralRedirect />} />
+
+        {/* Referral landing page - public (where user chooses platform) */}
+        <Route path="/listen/:code" element={<ReferralLanding />} />
 
         {/* Policy pages - public */}
         <Route path="/cookie-policy" element={<CookiePolicy />} />

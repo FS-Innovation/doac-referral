@@ -159,27 +159,23 @@ export const getBrowserFingerprint = async () => {
     components.push('canvas-error');
   }
 
-  // 5. Audio Context Fingerprint (audio rendering fingerprint)
+  // 5. Audio Context Fingerprint (simplified - no deprecated APIs)
+  // Uses audio context properties instead of processing audio
   try {
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const analyser = audioContext.createAnalyser();
-    const gainNode = audioContext.createGain();
-    const scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
 
-    gainNode.gain.value = 0; // Mute
-    oscillator.connect(analyser);
-    analyser.connect(scriptProcessor);
-    scriptProcessor.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    oscillator.start(0);
+    // Get unique audio characteristics without playing/processing audio
+    const audioProps = [
+      audioContext.sampleRate,
+      audioContext.baseLatency || 0,
+      audioContext.outputLatency || 0,
+      audioContext.destination.maxChannelCount,
+      audioContext.destination.channelCount,
+    ];
 
-    scriptProcessor.addEventListener('audioprocess', function(event) {
-      const output = event.outputBuffer.getChannelData(0);
-      components.push(output.slice(0, 30).join(','));
-    });
+    components.push(audioProps.join(','));
 
-    await new Promise(resolve => setTimeout(resolve, 10));
+    // Clean up immediately (no audio processing needed)
     audioContext.close();
   } catch (e) {
     components.push('audio-error');

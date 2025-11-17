@@ -62,7 +62,8 @@ export const authAPI = {
 // User endpoints
 export const userAPI = {
   getReferralStats: () => api.get('/user/referral-stats'),
-  getPurchaseHistory: () => api.get('/user/purchase-history')
+  getPurchaseHistory: () => api.get('/user/purchase-history'),
+  updateRedirectPlatform: (platform) => api.put('/user/redirect-platform', { platform })
 };
 
 // Product endpoints

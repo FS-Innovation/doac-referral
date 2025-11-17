@@ -16,9 +16,9 @@ export const trackReferralClick = async (req: Request, res: Response) => {
       // Cache hit - use cached user ID
       userId = parseInt(cachedUserId, 10);
     } else {
-      // Cache miss - query database
+      // Cache miss - query database (include redirect_platform preference)
       const userResult = await pool.query(
-        'SELECT id FROM users WHERE referral_code = $1',
+        'SELECT id, redirect_platform FROM users WHERE referral_code = $1',
         [code]
       );
 
@@ -160,7 +160,8 @@ export const trackReferralClick = async (req: Request, res: Response) => {
       if (selfClickReason) fraudFlags.push(`self_click:${selfClickReason}`);
       if (req.body.fraudReason) fraudFlags.push(req.body.fraudReason);
 
-      // Always insert click record with FULL forensic data
+      // NEW FLOW: Record click but DON'T award points yet
+      // Points will be awarded when user clicks platform button on landing page
       await client.query(
         `INSERT INTO referral_clicks
           (user_id, ip_address, user_agent, device_id, device_fingerprint, browser_fingerprint, fraud_flags, points_awarded)
@@ -173,29 +174,45 @@ export const trackReferralClick = async (req: Request, res: Response) => {
           deviceFingerprint || null,
           browserFingerprint || null,
           fraudFlags.length > 0 ? fraudFlags : null,
-          !skipPointsAward
+          false // Points NOT awarded yet - will be awarded on platform button click
         ]
       );
 
-      // Only award points if not flagged as potential fraud
-      if (!skipPointsAward) {
-        await client.query(
-          'UPDATE users SET points = points + 1 WHERE id = $1',
-          [userId]
-        );
-        console.log(`✅ Points awarded for code ${code} (IP: ${ipAddress}, Device: ${deviceId.substring(0, 8)}...)`);
-      } else {
-        console.warn(`⚠️  Points NOT awarded for code ${code} from IP ${ipAddress} (fraud prevention)`);
+      console.log(`📝 Click recorded for code ${code} (IP: ${ipAddress}, Device: ${deviceId.substring(0, 8)}...), points pending platform selection`);
+
+      if (skipPointsAward) {
+        console.warn(`⚠️  Click flagged for fraud - points will NOT be awarded`);
         console.warn(`   Fraud flags: ${JSON.stringify(fraudFlags)}`);
       }
 
       await client.query('COMMIT');
 
-      // HARDCODED: Always redirect to YouTube video
-      const redirectUrl = 'https://youtu.be/qxxnRMT9C-8';
+      // Store fraud check result in Redis for platform button click (10 min TTL)
+      const pendingClickKey = `pending:${code}:${deviceId}`;
+      await redisClient.setex(
+        pendingClickKey,
+        600, // 10 minutes - enough time to click platform button
+        JSON.stringify({
+          userId,
+          skipPointsAward,
+          fraudFlags,
+          deviceId,
+          deviceFingerprint,
+          browserFingerprint,
+          ipAddress
+        })
+      );
 
-      // Redirect to the configured URL
-      res.redirect(redirectUrl);
+      // NEW FLOW: Click tracked, pending platform selection
+      // Frontend will navigate to landing page and show YouTube/Spotify buttons
+      // Points are awarded when user clicks one of those buttons (extra verification step)
+      console.log(`✅ Click tracked for code ${code}, pending platform selection`);
+
+      // Return success (frontend handles navigation)
+      res.json({
+        success: true,
+        message: 'Click tracked successfully'
+      });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -205,5 +222,106 @@ export const trackReferralClick = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Referral tracking error:', error);
     res.status(500).json({ error: 'Failed to track referral click' });
+  }
+};
+
+// Get platform redirect settings (for landing page)
+export const getSettings = async (_req: Request, res: Response) => {
+  try {
+    const settingsResult = await pool.query(
+      `SELECT key, value FROM settings WHERE key IN ('redirect_url', 'redirect_url_spotify')`
+    );
+
+    const settings: Record<string, string> = {};
+    settingsResult.rows.forEach(row => {
+      settings[row.key] = row.value;
+    });
+
+    res.json({
+      youtubeUrl: settings['redirect_url'] || 'https://youtu.be/qxxnRMT9C-8',
+      spotifyUrl: settings['redirect_url_spotify'] || 'https://open.spotify.com/episode/6L11cxCLi0V6mhlpdzLokR'
+    });
+  } catch (error) {
+    console.error('Get settings error:', error);
+    res.status(500).json({ error: 'Failed to load settings' });
+  }
+};
+
+// Award points when user clicks platform button (with fraud prevention)
+export const awardPoints = async (req: Request, res: Response) => {
+  const { code, platform } = req.body;
+
+  if (!code || !platform || !['youtube', 'spotify'].includes(platform)) {
+    return res.status(400).json({ error: 'Invalid request parameters' });
+  }
+
+  try {
+    // Get fingerprints from request headers
+    const deviceId = req.get('x-device-id') || '';
+    const deviceFingerprint = req.get('x-device-fingerprint') || '';
+    const browserFingerprint = req.get('x-browser-fingerprint') || '';
+
+    // Retrieve pending click from Redis
+    const pendingClickKey = `pending:${code}:${deviceId}`;
+    const pendingData = await redisClient.get(pendingClickKey);
+
+    if (!pendingData) {
+      return res.status(400).json({
+        error: 'No pending click found. Please use your referral link first.'
+      });
+    }
+
+    const pending = JSON.parse(pendingData);
+
+    // Verify fingerprints match (prevent session hijacking)
+    if (pending.deviceId !== deviceId ||
+        pending.deviceFingerprint !== deviceFingerprint ||
+        pending.browserFingerprint !== browserFingerprint) {
+      console.warn(`⚠️  Fingerprint mismatch for code ${code} - potential session hijacking`);
+      return res.status(403).json({ error: 'Session validation failed' });
+    }
+
+    // Get redirect URL based on platform choice
+    const settingsResult = await pool.query(
+      `SELECT key, value FROM settings WHERE key IN ('redirect_url', 'redirect_url_spotify')`
+    );
+
+    const settings: Record<string, string> = {};
+    settingsResult.rows.forEach(row => {
+      settings[row.key] = row.value;
+    });
+
+    let redirectUrl: string;
+    if (platform === 'spotify' && settings['redirect_url_spotify']) {
+      redirectUrl = settings['redirect_url_spotify'];
+    } else {
+      redirectUrl = settings['redirect_url'] || 'https://youtu.be/qxxnRMT9C-8';
+    }
+
+    // Award points if not flagged for fraud
+    if (!pending.skipPointsAward) {
+      await pool.query(
+        'UPDATE users SET points = points + 1 WHERE id = $1',
+        [pending.userId]
+      );
+      console.log(`✅ Points awarded for code ${code} via ${platform} button (Device: ${deviceId.substring(0, 8)}...)`);
+    } else {
+      console.warn(`⚠️  Points NOT awarded for code ${code} - fraud flags: ${JSON.stringify(pending.fraudFlags)}`);
+    }
+
+    // Delete pending click (one-time use)
+    await redisClient.del(pendingClickKey);
+
+    console.log(`🎵 User selected ${platform}, redirecting to: ${redirectUrl}`);
+
+    // Return redirect URL
+    res.json({
+      success: true,
+      redirectUrl,
+      pointsAwarded: !pending.skipPointsAward
+    });
+  } catch (error) {
+    console.error('Award points error:', error);
+    res.status(500).json({ error: 'Failed to process platform selection' });
   }
 };

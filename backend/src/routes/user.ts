@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getReferralStats, getPurchaseHistory } from '../controllers/userController';
+import { getReferralStats, getPurchaseHistory, updateRedirectPlatform } from '../controllers/userController';
 import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
@@ -9,5 +9,6 @@ router.use(authenticateToken);
 
 router.get('/referral-stats', getReferralStats);
 router.get('/purchase-history', getPurchaseHistory);
+router.put('/redirect-platform', updateRedirectPlatform);
 
 export default router;

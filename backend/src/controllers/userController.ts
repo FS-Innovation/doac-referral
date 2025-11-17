@@ -6,9 +6,9 @@ export const getReferralStats = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
 
-    // Get user's referral code and points
+    // Get user's referral code, points, and platform preference
     const userResult = await pool.query(
-      'SELECT referral_code, points FROM users WHERE id = $1',
+      'SELECT referral_code, points, redirect_platform FROM users WHERE id = $1',
       [userId]
     );
 
@@ -16,7 +16,7 @@ export const getReferralStats = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const { referral_code, points } = userResult.rows[0];
+    const { referral_code, points, redirect_platform } = userResult.rows[0];
 
     // Get total click count
     const clickCountResult = await pool.query(
@@ -44,6 +44,7 @@ export const getReferralStats = async (req: AuthRequest, res: Response) => {
       referralUrl,
       points,
       totalClicks,
+      redirectPlatform: redirect_platform || 'youtube',
       recentClicks: recentClicksResult.rows.map(click => ({
         ipAddress: click.ip_address,
         userAgent: click.user_agent,
@@ -79,5 +80,35 @@ export const getPurchaseHistory = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Get purchase history error:', error);
     res.status(500).json({ error: 'Failed to fetch purchase history' });
+  }
+};
+
+export const updateRedirectPlatform = async (req: AuthRequest, res: Response) => {
+  try {
+    const { platform } = req.body;
+    const userId = req.user!.id;
+
+    // Validate platform
+    if (!platform || !['youtube', 'spotify'].includes(platform)) {
+      return res.status(400).json({
+        error: 'Invalid platform. Must be "youtube" or "spotify"'
+      });
+    }
+
+    // Update user's platform preference
+    await pool.query(
+      'UPDATE users SET redirect_platform = $1 WHERE id = $2',
+      [platform, userId]
+    );
+
+    console.log(`✅ User ${userId} updated redirect platform to: ${platform}`);
+
+    res.json({
+      message: 'Platform preference updated successfully',
+      platform
+    });
+  } catch (error) {
+    console.error('Update redirect platform error:', error);
+    res.status(500).json({ error: 'Failed to update platform preference' });
   }
 };
