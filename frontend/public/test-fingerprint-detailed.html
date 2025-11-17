@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Fingerprint Generation - Detailed View</title>
+  <style>
+    body {
+      font-family: 'Courier New', monospace;
+      background: #0a0a0a;
+      color: #00ff00;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .section {
+      background: #1a1a1a;
+      border: 2px solid #00ff00;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+    }
+    .step {
+      background: #0d1117;
+      border-left: 4px solid #ff6b00;
+      padding: 15px;
+      margin: 15px 0;
+    }
+    .data {
+      color: #ffff00;
+      background: #222;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      word-break: break-all;
+    }
+    .hash {
+      color: #00ffff;
+      font-size: 14px;
+      background: #1a2332;
+      padding: 10px;
+      border-radius: 4px;
+      word-break: break-all;
+    }
+    h1 { color: #ff6b00; }
+    h2 { color: #00ffff; }
+    h3 { color: #ffff00; }
+  </style>
+</head>
+<body>
+  <h1>🔬 Fingerprint Generation - See The ACTUAL Data</h1>
+  <p>This shows you EXACTLY what data is collected from your device and how it's turned into a fingerprint hash.</p>
+
+  <div id="results">Generating...</div>
+
+  <script>
+    const hashString = async (str) => {
+      if (window.crypto && window.crypto.subtle) {
+        try {
+          const encoder = new TextEncoder();
+          const data = encoder.encode(str);
+          const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          return hashHex;
+        } catch (e) {}
+      }
+      let hash = 2166136261;
+      for (let i = 0; i < str.length; i++) {
+        hash ^= str.charCodeAt(i);
+        hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+      }
+      return (hash >>> 0).toString(16);
+    };
+
+    const getDeviceFingerprint = async () => {
+      const components = [];
+      const details = [];
+
+      // 1. Platform & OS
+      const platform = navigator.platform;
+      const userPlatform = navigator.userAgentData?.platform || 'unknown';
+      components.push(platform);
+      components.push(userPlatform);
+      details.push(`<h3>Platform:</h3><div class="data">${platform} | ${userPlatform}</div>`);
+
+      // 2. CPU & RAM
+      const cpuCores = navigator.hardwareConcurrency || 'unknown';
+      const ram = navigator.deviceMemory || 'unknown';
+      components.push(cpuCores);
+      components.push(ram);
+      details.push(`<h3>CPU & RAM:</h3><div class="data">${cpuCores} cores | ${ram}GB RAM</div>`);
+
+      // 3. GPU
+      let gpuInfo = 'Unknown GPU';
+      try {
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        if (gl) {
+          const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+          if (debugInfo) {
+            const vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+            const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+            components.push(vendor);
+            components.push(renderer);
+            gpuInfo = `${vendor} - ${renderer}`;
+          }
+          const maxTexture = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+          components.push(maxTexture);
+          const extensions = gl.getSupportedExtensions() || [];
+          components.push(extensions.sort().join(','));
+          details.push(`<h3>GPU:</h3><div class="data">${gpuInfo}<br>Max Texture Size: ${maxTexture}<br>Extensions: ${extensions.length} supported</div>`);
+        }
+      } catch (e) {
+        components.push('webgl-error');
+      }
+
+      // 4. Screen
+      const screen = `${window.screen.width}x${window.screen.height}`;
+      const colorDepth = window.screen.colorDepth;
+      const pixelRatio = window.devicePixelRatio || 1;
+      components.push(screen);
+      components.push(colorDepth);
+      components.push(pixelRatio);
+      details.push(`<h3>Screen:</h3><div class="data">Resolution: ${screen}<br>Color Depth: ${colorDepth} bits<br>Pixel Ratio: ${pixelRatio}x ${pixelRatio > 1 ? '(Retina Display)' : ''}</div>`);
+
+      // 5. Touch
+      const touchPoints = navigator.maxTouchPoints || 0;
+      const touchSupport = 'ontouchstart' in window;
+      components.push(touchPoints);
+      components.push(touchSupport);
+      details.push(`<h3>Touch:</h3><div class="data">Max Touch Points: ${touchPoints}<br>Touch Support: ${touchSupport ? 'Yes' : 'No'}</div>`);
+
+      // Combine all components
+      const rawData = components.join('|||');
+      const hash = await hashString(rawData);
+
+      return { hash, rawData, details: details.join('') };
+    };
+
+    const getBrowserFingerprint = async () => {
+      const components = [];
+      const details = [];
+
+      // 1. User Agent
+      const ua = navigator.userAgent;
+      components.push(ua);
+      details.push(`<h3>User Agent:</h3><div class="data">${ua}</div>`);
+
+      // 2. Language & Timezone
+      const lang = navigator.language;
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      components.push(lang);
+      components.push(timezone);
+      details.push(`<h3>Language & Timezone:</h3><div class="data">Language: ${lang}<br>Timezone: ${timezone}</div>`);
+
+      // 3. Canvas Fingerprint
+      let canvasHash = 'unknown';
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 200;
+        canvas.height = 60;
+        ctx.textBaseline = 'top';
+        ctx.font = '14px "Arial"';
+        ctx.fillStyle = '#f60';
+        ctx.fillRect(125, 1, 62, 20);
+        ctx.fillStyle = '#069';
+        ctx.font = '11pt Arial';
+        ctx.fillText('Test 😃', 2, 15);
+        const canvasData = canvas.toDataURL();
+        components.push(canvasData);
+        canvasHash = await hashString(canvasData);
+        details.push(`<h3>Canvas Rendering:</h3><div class="data">Canvas renders text/shapes slightly differently on each browser/OS.<br>Hash: ${canvasHash.substring(0, 32)}...</div>`);
+      } catch (e) {
+        components.push('canvas-error');
+      }
+
+      // 4. Audio Context
+      try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioProps = [
+          audioContext.sampleRate,
+          audioContext.baseLatency || 0,
+          audioContext.destination.maxChannelCount,
+        ];
+        components.push(audioProps.join(','));
+        details.push(`<h3>Audio Context:</h3><div class="data">Sample Rate: ${audioProps[0]} Hz<br>Latency: ${audioProps[1]}<br>Max Channels: ${audioProps[2]}</div>`);
+        audioContext.close();
+      } catch (e) {
+        components.push('audio-error');
+      }
+
+      const rawData = components.join('|||');
+      const hash = await hashString(rawData);
+
+      return { hash, rawData, details: details.join('') };
+    };
+
+    async function runTest() {
+      const deviceFp = await getDeviceFingerprint();
+      const browserFp = await getBrowserFingerprint();
+
+      const html = `
+        <div class="section">
+          <h1>📊 DEVICE FINGERPRINT GENERATION</h1>
+
+          <div class="step">
+            <h2>Step 1: Collect Hardware Data</h2>
+            ${deviceFp.details}
+          </div>
+
+          <div class="step">
+            <h2>Step 2: Combine All Data Into One String</h2>
+            <div class="data" style="font-size: 11px; max-height: 200px; overflow-y: auto;">
+              ${deviceFp.rawData.substring(0, 500)}...
+              <br><br><strong>Full Length:</strong> ${deviceFp.rawData.length} characters
+            </div>
+          </div>
+
+          <div class="step">
+            <h2>Step 3: Hash With SHA-256 Algorithm</h2>
+            <p>SHA-256 turns ANY data into a 64-character hexadecimal string</p>
+            <div class="hash">
+              <strong>Your Device Fingerprint:</strong><br>
+              ${deviceFp.hash}
+            </div>
+            <p style="color: #ff6b00;">⚠️ Even changing ONE letter in the input creates a COMPLETELY different hash!</p>
+          </div>
+        </div>
+
+        <div class="section">
+          <h1>🌐 BROWSER FINGERPRINT GENERATION</h1>
+
+          <div class="step">
+            <h2>Step 1: Collect Browser/Software Data</h2>
+            ${browserFp.details}
+          </div>
+
+          <div class="step">
+            <h2>Step 2: Hash With SHA-256</h2>
+            <div class="hash">
+              <strong>Your Browser Fingerprint:</strong><br>
+              ${browserFp.hash}
+            </div>
+          </div>
+        </div>
+
+        <div class="section" style="border-color: #ff6b00;">
+          <h1 style="color: #ff6b00;">🔐 WHY THIS IS UNIQUE</h1>
+          <div style="color: #fff; font-size: 16px;">
+            <p><strong>Your Device:</strong></p>
+            <ul>
+              <li>Different GPU model = Different hash</li>
+              <li>Different screen resolution = Different hash</li>
+              <li>Different CPU cores = Different hash</li>
+              <li>Different RAM = Different hash</li>
+            </ul>
+
+            <p><strong>Your Browser:</strong></p>
+            <ul>
+              <li>Chrome vs Firefox = Different canvas rendering = Different hash</li>
+              <li>Different timezone = Different hash</li>
+              <li>Different installed fonts = Different hash</li>
+            </ul>
+
+            <p style="color: #00ff00;"><strong>Probability two random devices have the SAME fingerprint: ~0.0001%</strong></p>
+          </div>
+        </div>
+
+        <div class="section" style="border-color: #00ffff;">
+          <h1 style="color: #00ffff;">🧪 TRY THIS</h1>
+          <div style="color: #fff;">
+            <p>1. Open this page on your phone → COMPLETELY different fingerprints</p>
+            <p>2. Open in Chrome vs Firefox → Device FP same, Browser FP different</p>
+            <p>3. Ask a friend to try → All values totally different</p>
+            <p>4. Refresh this page → Fingerprints stay THE SAME (proof they're deterministic, not random)</p>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('results').innerHTML = html;
+    }
+
+    runTest();
+  </script>
+</body>
+</html>

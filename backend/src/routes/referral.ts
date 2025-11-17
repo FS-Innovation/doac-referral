@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { trackReferralClick, getSettings, awardPoints } from '../controllers/referralController';
-import { referralClickLimiter, detectReferralFraud } from '../middleware/rateLimiter';
+import { referralClickLimiter, detectReferralFraud, platformButtonLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -11,7 +11,7 @@ const router = Router();
 router.get('/settings', getSettings);
 
 // Award points when user clicks platform button on landing page
-router.post('/award-points', awardPoints);
+router.post('/award-points', platformButtonLimiter, awardPoints);
 
 // Public route with fraud protection
 // Apply rate limiting (1 click per IP per hour) and fraud detection

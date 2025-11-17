@@ -84,6 +84,29 @@ export const registerLimiter = rateLimit({
   },
 });
 
+// Platform button click protection - prevent spam clicking the award-points endpoint
+// More restrictive than initial click since user has already selected platform
+export const platformButtonLimiter = rateLimit({
+  store: redisAvailable ? new RedisStore({
+    // @ts-ignore
+    sendCommand: (...args: any[]) => redisClient.call(...args),
+    prefix: 'rl:platform:',
+  }) : undefined,
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // Max 10 platform button clicks per minute (prevents spam)
+  message: 'Too many platform selections. Please slow down.',
+  skip: () => {
+    return process.env.NODE_ENV === 'development' || (!redisAvailable && process.env.NODE_ENV === 'production');
+  },
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      error: 'Too many requests',
+      message: 'Please wait a moment before trying again.',
+      retryAfter: 60
+    });
+  },
+});
+
 // CRITICAL: Referral click protection - NO IP-based rate limiting
 // Fraud prevention is 100% fingerprint-based (device ID, device FP, browser FP)
 // This limiter only prevents catastrophic abuse (e.g., 1000 requests/second DoS attack)

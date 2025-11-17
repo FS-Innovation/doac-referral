@@ -225,11 +225,11 @@ export const trackReferralClick = async (req: Request, res: Response) => {
   }
 };
 
-// Get platform redirect settings (for landing page)
+// Get platform redirect settings with metadata (for landing page)
 export const getSettings = async (_req: Request, res: Response) => {
   try {
     const settingsResult = await pool.query(
-      `SELECT key, value FROM settings WHERE key IN ('redirect_url', 'redirect_url_spotify')`
+      `SELECT key, value FROM settings WHERE key IN ('redirect_url', 'redirect_url_spotify', 'redirect_url_apple')`
     );
 
     const settings: Record<string, string> = {};
@@ -237,9 +237,37 @@ export const getSettings = async (_req: Request, res: Response) => {
       settings[row.key] = row.value;
     });
 
+    const youtubeUrl = settings['redirect_url'] || 'https://youtu.be/qxxnRMT9C-8';
+    const spotifyUrl = settings['redirect_url_spotify'] || 'https://open.spotify.com/episode/6L11cxCLi0V6mhlpdzLokR';
+    const appleUrl = settings['redirect_url_apple'] || '';
+
+    // Get cached metadata from database
+    const metadataResult = await pool.query(
+      `SELECT platform, title, description, thumbnail_url, duration, channel_name, view_count
+       FROM video_metadata
+       WHERE platform IN ('youtube', 'spotify', 'apple')
+       ORDER BY platform`
+    );
+
+    const metadata: Record<string, any> = {};
+    metadataResult.rows.forEach(row => {
+      metadata[row.platform] = {
+        title: row.title,
+        description: row.description,
+        thumbnail: row.thumbnail_url,
+        duration: row.duration,
+        channel: row.channel_name,
+        views: row.view_count
+      };
+    });
+
     res.json({
-      youtubeUrl: settings['redirect_url'] || 'https://youtu.be/qxxnRMT9C-8',
-      spotifyUrl: settings['redirect_url_spotify'] || 'https://open.spotify.com/episode/6L11cxCLi0V6mhlpdzLokR'
+      youtubeUrl,
+      spotifyUrl,
+      appleUrl,
+      youtube: metadata['youtube'] || null,
+      spotify: metadata['spotify'] || null,
+      apple: metadata['apple'] || null
     });
   } catch (error) {
     console.error('Get settings error:', error);
@@ -247,11 +275,45 @@ export const getSettings = async (_req: Request, res: Response) => {
   }
 };
 
+// Helper function to convert web URLs to app deep links
+const getAppDeepLink = (platform: string, webUrl: string): string => {
+  try {
+    if (platform === 'youtube') {
+      // YouTube: Extract video ID and use app deep link
+      // Formats: youtu.be/VIDEO_ID or youtube.com/watch?v=VIDEO_ID
+      const videoIdMatch = webUrl.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([^&\n?#]+)/);
+      if (videoIdMatch && videoIdMatch[1]) {
+        const videoId = videoIdMatch[1];
+        // YouTube app deep link - falls back to web if app not installed
+        return `vnd.youtube://watch?v=${videoId}`;
+      }
+    } else if (platform === 'spotify') {
+      // Spotify: Extract episode ID and use app deep link
+      // Format: open.spotify.com/episode/EPISODE_ID
+      const episodeIdMatch = webUrl.match(/spotify\.com\/episode\/([^?&\n]+)/);
+      if (episodeIdMatch && episodeIdMatch[1]) {
+        const episodeId = episodeIdMatch[1];
+        // Spotify app deep link - falls back to web if app not installed
+        return `spotify:episode:${episodeId}`;
+      }
+    } else if (platform === 'apple') {
+      // Apple Podcasts: Use the web URL (app deep link is complex and unreliable)
+      // Apple Podcasts will automatically open in app if installed
+      return webUrl;
+    }
+  } catch (error) {
+    console.error('Error generating app deep link:', error);
+  }
+
+  // Fallback to web URL if deep link generation fails
+  return webUrl;
+};
+
 // Award points when user clicks platform button (with fraud prevention)
 export const awardPoints = async (req: Request, res: Response) => {
   const { code, platform } = req.body;
 
-  if (!code || !platform || !['youtube', 'spotify'].includes(platform)) {
+  if (!code || !platform || !['youtube', 'spotify', 'apple'].includes(platform)) {
     return res.status(400).json({ error: 'Invalid request parameters' });
   }
 
@@ -283,7 +345,7 @@ export const awardPoints = async (req: Request, res: Response) => {
 
     // Get redirect URL based on platform choice
     const settingsResult = await pool.query(
-      `SELECT key, value FROM settings WHERE key IN ('redirect_url', 'redirect_url_spotify')`
+      `SELECT key, value FROM settings WHERE key IN ('redirect_url', 'redirect_url_spotify', 'redirect_url_apple')`
     );
 
     const settings: Record<string, string> = {};
@@ -291,12 +353,17 @@ export const awardPoints = async (req: Request, res: Response) => {
       settings[row.key] = row.value;
     });
 
-    let redirectUrl: string;
+    let webUrl: string;
     if (platform === 'spotify' && settings['redirect_url_spotify']) {
-      redirectUrl = settings['redirect_url_spotify'];
+      webUrl = settings['redirect_url_spotify'];
+    } else if (platform === 'apple' && settings['redirect_url_apple']) {
+      webUrl = settings['redirect_url_apple'];
     } else {
-      redirectUrl = settings['redirect_url'] || 'https://youtu.be/qxxnRMT9C-8';
+      webUrl = settings['redirect_url'] || 'https://youtu.be/qxxnRMT9C-8';
     }
+
+    // Convert to app deep link (opens native app if installed, otherwise web)
+    const redirectUrl = getAppDeepLink(platform, webUrl);
 
     // Award points if not flagged for fraud
     if (!pending.skipPointsAward) {
@@ -314,10 +381,11 @@ export const awardPoints = async (req: Request, res: Response) => {
 
     console.log(`🎵 User selected ${platform}, redirecting to: ${redirectUrl}`);
 
-    // Return redirect URL
+    // Return redirect URL (deep link for app, web URL as fallback)
     res.json({
       success: true,
       redirectUrl,
+      webUrl, // Fallback web URL if deep link fails
       pointsAwarded: !pending.skipPointsAward
     });
   } catch (error) {

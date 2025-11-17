@@ -10,6 +10,7 @@ import productRoutes from './routes/product';
 import referralRoutes from './routes/referral';
 import adminRoutes from './routes/admin';
 import { generalLimiter, loginLimiter, registerLimiter, adminLimiter } from './middleware/rateLimiter';
+// import { initializeMetadataBackground } from './startup/initializeMetadata'; // DISABLED - causes DB connection timeouts
 
 dotenv.config();
 
@@ -99,5 +100,10 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`✅ Health check: http://localhost:${PORT}/health`);
+
+    // Auto-initialize video metadata in background - DISABLED
+    // Metadata is already cached in database, no need for startup check
+    // Caused connection timeouts on Cloud Run startup
+    // initializeMetadataBackground();
   });
 }

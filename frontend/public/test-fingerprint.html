@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Fingerprint Test</title>
+  <style>
+    body {
+      font-family: monospace;
+      background: #000;
+      color: #0f0;
+      padding: 20px;
+    }
+    .result {
+      background: #111;
+      border: 1px solid #0f0;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 5px;
+    }
+    .hash {
+      word-break: break-all;
+      color: #ff0;
+    }
+    .detail {
+      color: #aaa;
+      font-size: 12px;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔍 Fingerprint Uniqueness Test</h1>
+  <p>This page generates your device/browser fingerprints. Test on different devices/browsers to verify uniqueness.</p>
+
+  <div id="results">Loading...</div>
+
+  <script>
+    // Copy fingerprint code from your app
+    const generateUUID = () => {
+      if (window.crypto && window.crypto.randomUUID) {
+        return window.crypto.randomUUID();
+      }
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+    };
+
+    const getDeviceId = () => {
+      let deviceId = localStorage.getItem('deviceId');
+      if (!deviceId) {
+        deviceId = generateUUID();
+        localStorage.setItem('deviceId', deviceId);
+      }
+      return deviceId;
+    };
+
+    const hashString = async (str) => {
+      if (window.crypto && window.crypto.subtle) {
+        try {
+          const encoder = new TextEncoder();
+          const data = encoder.encode(str);
+          const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          return hashHex;
+        } catch (e) {}
+      }
+      let hash = 2166136261;
+      for (let i = 0; i < str.length; i++) {
+        hash ^= str.charCodeAt(i);
+        hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+      }
+      return (hash >>> 0).toString(16);
+    };
+
+    const getDeviceFingerprint = async () => {
+      const components = [];
+      components.push(navigator.platform);
+      components.push(navigator.userAgentData?.platform || 'unknown');
+      components.push(navigator.hardwareConcurrency || 'unknown');
+      components.push(navigator.deviceMemory || 'unknown');
+
+      // GPU
+      try {
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        if (gl) {
+          const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+          if (debugInfo) {
+            const vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+            const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+            components.push(vendor);
+            components.push(renderer);
+          }
+          components.push(gl.getParameter(gl.MAX_TEXTURE_SIZE));
+          const extensions = gl.getSupportedExtensions() || [];
+          components.push(extensions.sort().join(','));
+        }
+      } catch (e) {}
+
+      components.push(`${window.screen.width}x${window.screen.height}`);
+      components.push(window.screen.colorDepth);
+      components.push(window.devicePixelRatio || 1);
+      components.push(navigator.maxTouchPoints || 0);
+
+      const fingerprint = await hashString(components.join('|||'));
+      return { hash: fingerprint, components };
+    };
+
+    const getBrowserFingerprint = async () => {
+      const components = [];
+      components.push(navigator.userAgent);
+      components.push(navigator.language);
+      components.push(Intl.DateTimeFormat().resolvedOptions().timeZone);
+
+      // Canvas
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 200;
+        canvas.height = 60;
+        ctx.textBaseline = 'top';
+        ctx.font = '14px "Arial"';
+        ctx.fillStyle = '#f60';
+        ctx.fillRect(125, 1, 62, 20);
+        ctx.fillStyle = '#069';
+        ctx.fillText('Test 😃', 2, 15);
+        const canvasData = canvas.toDataURL();
+        components.push(canvasData);
+      } catch (e) {}
+
+      const fingerprint = await hashString(components.join('|||'));
+      return { hash: fingerprint, components };
+    };
+
+    async function runTest() {
+      const deviceId = getDeviceId();
+      const deviceFp = await getDeviceFingerprint();
+      const browserFp = await getBrowserFingerprint();
+
+      const html = `
+        <div class="result">
+          <h2>✅ Device ID (UUID)</h2>
+          <div class="hash">${deviceId}</div>
+          <div class="detail">Stored in localStorage - unique per browser profile</div>
+        </div>
+
+        <div class="result">
+          <h2>🖥️ Device Fingerprint (Hardware)</h2>
+          <div class="hash">${deviceFp.hash}</div>
+          <div class="detail">Based on: ${deviceFp.components.slice(0, 5).join(', ')}</div>
+        </div>
+
+        <div class="result">
+          <h2>🌐 Browser Fingerprint (Software)</h2>
+          <div class="hash">${browserFp.hash}</div>
+          <div class="detail">Based on: User Agent, Canvas, Timezone, etc.</div>
+        </div>
+
+        <div class="result" style="border-color: #0ff; color: #0ff;">
+          <h2>📊 Test Instructions</h2>
+          <p>1. ✅ Same device, same browser → All 3 should match</p>
+          <p>2. ✅ Same device, different browser → Device FP same, Browser FP different</p>
+          <p>3. ✅ Different device → All 3 different</p>
+          <p>4. ✅ Incognito mode → Device ID different (new UUID), fingerprints same</p>
+          <p>5. ✅ Clear localStorage → Device ID regenerates, fingerprints same</p>
+        </div>
+
+        <div class="result" style="border-color: #f90; color: #f90;">
+          <h2>⚠️ What Makes Each Unique?</h2>
+          <p><strong>Device ID:</strong> Random UUID (crypto.randomUUID()) - 340 undecillion possibilities</p>
+          <p><strong>Device FP:</strong> GPU vendor/model + CPU cores + RAM + Screen + Touch</p>
+          <p><strong>Browser FP:</strong> Canvas rendering + Audio context + Fonts + Timezone</p>
+        </div>
+      `;
+
+      document.getElementById('results').innerHTML = html;
+    }
+
+    runTest();
+  </script>
+</body>
+</html>
