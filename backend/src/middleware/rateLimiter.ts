@@ -260,3 +260,76 @@ export const adminLimiter = rateLimit({
     return !redisAvailable && process.env.NODE_ENV === 'production';
   },
 });
+
+// Password reset request limiter - 3 attempts per hour per IP
+// Prevents attackers from spamming reset emails to users
+export const forgotPasswordLimiter = rateLimit({
+  store: redisAvailable ? new RedisStore({
+    // @ts-ignore
+    sendCommand: (...args: any[]) => redisClient.call(...args),
+    prefix: 'rl:forgot:',
+  }) : undefined,
+  windowMs: 60 * 60 * 1000, // 1 hour window
+  max: process.env.NODE_ENV === 'development' ? 100 : 3, // 3 requests per hour
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      error: 'Too many password reset requests',
+      message: 'You can only request a password reset 3 times per hour. Please check your email or wait before trying again.',
+      retryAfter: 3600 // 1 hour in seconds
+    });
+  },
+  skip: () => {
+    return !redisAvailable && process.env.NODE_ENV === 'production';
+  },
+});
+
+// Password reset code verification limiter - 5 attempts per 15 minutes
+// Prevents brute force attacks on the 6-digit code
+export const verifyResetCodeLimiter = rateLimit({
+  store: redisAvailable ? new RedisStore({
+    // @ts-ignore
+    sendCommand: (...args: any[]) => redisClient.call(...args),
+    prefix: 'rl:verify:',
+  }) : undefined,
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'development' ? 100 : 5, // 5 attempts per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true, // Only count failed verification attempts
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      error: 'Too many verification attempts',
+      message: 'For security, you can only attempt to verify a code 5 times per 15 minutes. Please request a new code if needed.',
+      retryAfter: 900 // 15 minutes in seconds
+    });
+  },
+  skip: () => {
+    return !redisAvailable && process.env.NODE_ENV === 'production';
+  },
+});
+
+// Password reset completion limiter - 5 attempts per hour
+// Prevents brute force on the reset token
+export const resetPasswordLimiter = rateLimit({
+  store: redisAvailable ? new RedisStore({
+    // @ts-ignore
+    sendCommand: (...args: any[]) => redisClient.call(...args),
+    prefix: 'rl:reset:',
+  }) : undefined,
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: process.env.NODE_ENV === 'development' ? 100 : 5, // 5 attempts per hour
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      error: 'Too many password reset attempts',
+      message: 'You can only reset your password 5 times per hour. Please wait before trying again.',
+      retryAfter: 3600 // 1 hour in seconds
+    });
+  },
+  skip: () => {
+    return !redisAvailable && process.env.NODE_ENV === 'production';
+  },
+});

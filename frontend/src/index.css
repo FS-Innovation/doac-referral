@@ -722,6 +722,80 @@ table th {
   flex-shrink: 0;
 }
 
+/* Modal Success */
+.modal-success {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1.5px solid rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.modal-success svg {
+  flex-shrink: 0;
+}
+
+/* 6-Digit Code Input Container */
+.code-input-container {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin: 30px 0;
+}
+
+.code-input {
+  width: 50px;
+  height: 60px;
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+  background: #0f172a;
+  border: 2px solid #334155;
+  border-radius: 12px;
+  color: #e2e8f0;
+  transition: all 0.2s ease;
+  caret-color: #3b82f6;
+}
+
+.code-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  background: #1e293b;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.code-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.code-input::selection {
+  background: #3b82f6;
+  color: white;
+}
+
+/* Mobile responsive code inputs */
+@media (max-width: 480px) {
+  .code-input-container {
+    gap: 8px;
+  }
+
+  .code-input {
+    width: 40px;
+    height: 50px;
+    font-size: 20px;
+  }
+}
+
 /* Submit Button */
 .modal-submit {
   position: relative;
@@ -822,12 +896,9 @@ table th {
   color: #ffffff;
   text-decoration: none;
   font-weight: 600;
-  background: linear-gradient(135deg, #ffffff 0%, #5A2F30 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
   cursor: pointer;
   border: none;
+  background: none;
   padding: 0;
   font-size: inherit;
   font-family: inherit;
@@ -836,6 +907,7 @@ table th {
 
 .footer-link:hover {
   opacity: 0.8;
+  text-decoration: underline;
 }
 
 /* Mobile-First Responsive Design */
