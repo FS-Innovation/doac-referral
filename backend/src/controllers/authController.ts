@@ -63,16 +63,39 @@ export const register = async (req: Request, res: Response) => {
       domain: process.env.NODE_ENV === 'production' ? '.doac-perks.com' : undefined  // ✅ Share across subdomains
     });
 
-    // Store user's fingerprints in Redis for self-click prevention (expires in 24 hours)
+    // Store user's fingerprints in BOTH Redis (fast lookup) AND database (permanent record)
     const userIp = req.ip || req.socket.remoteAddress || 'unknown';
     const deviceId = req.get('x-device-id') || '';
     const deviceFingerprint = req.get('x-device-fingerprint') || '';
     const browserFingerprint = req.get('x-browser-fingerprint') || '';
 
+    // Redis cache for fast self-click detection (24 hours)
     await redisClient.setex(`user:${user.id}:ip`, 86400, userIp);
     if (deviceId) await redisClient.setex(`user:${user.id}:deviceid`, 86400, deviceId);
     if (deviceFingerprint) await redisClient.setex(`user:${user.id}:devicefp`, 86400, deviceFingerprint);
     if (browserFingerprint) await redisClient.setex(`user:${user.id}:browserfp`, 86400, browserFingerprint);
+
+    // CRITICAL: Store in database for persistent fraud prevention (survives Redis expiry)
+    // Updates last_seen if device already exists, creates new record if first time
+    if (deviceId || deviceFingerprint) {
+      try {
+        await pool.query(`
+          INSERT INTO user_fingerprints
+            (user_id, device_id, device_fingerprint, browser_fingerprint, ip_address, first_seen, last_seen)
+          VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT ON CONSTRAINT user_fingerprints_user_id_device_id_key
+          DO UPDATE SET
+            device_fingerprint = EXCLUDED.device_fingerprint,
+            browser_fingerprint = EXCLUDED.browser_fingerprint,
+            ip_address = EXCLUDED.ip_address,
+            last_seen = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        `, [user.id, deviceId || null, deviceFingerprint || null, browserFingerprint || null, userIp]);
+      } catch (dbError) {
+        console.error('Failed to store fingerprint in database (registration):', dbError);
+        // Don't fail registration if fingerprint storage fails
+      }
+    }
 
     res.status(201).json({
       message: 'User created successfully',
@@ -135,16 +158,39 @@ export const login = async (req: Request, res: Response) => {
       domain: process.env.NODE_ENV === 'production' ? '.doac-perks.com' : undefined  // ✅ Share across subdomains
     });
 
-    // Store user's fingerprints in Redis for self-click prevention (expires in 24 hours)
+    // Store user's fingerprints in BOTH Redis (fast lookup) AND database (permanent record)
     const userIp = req.ip || req.socket.remoteAddress || 'unknown';
     const deviceId = req.get('x-device-id') || '';
     const deviceFingerprint = req.get('x-device-fingerprint') || '';
     const browserFingerprint = req.get('x-browser-fingerprint') || '';
 
+    // Redis cache for fast self-click detection (24 hours)
     await redisClient.setex(`user:${user.id}:ip`, 86400, userIp);
     if (deviceId) await redisClient.setex(`user:${user.id}:deviceid`, 86400, deviceId);
     if (deviceFingerprint) await redisClient.setex(`user:${user.id}:devicefp`, 86400, deviceFingerprint);
     if (browserFingerprint) await redisClient.setex(`user:${user.id}:browserfp`, 86400, browserFingerprint);
+
+    // CRITICAL: Store in database for persistent fraud prevention (survives Redis expiry)
+    // Updates last_seen if device already exists, creates new record if first time
+    if (deviceId || deviceFingerprint) {
+      try {
+        await pool.query(`
+          INSERT INTO user_fingerprints
+            (user_id, device_id, device_fingerprint, browser_fingerprint, ip_address, first_seen, last_seen)
+          VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT ON CONSTRAINT user_fingerprints_user_id_device_id_key
+          DO UPDATE SET
+            device_fingerprint = EXCLUDED.device_fingerprint,
+            browser_fingerprint = EXCLUDED.browser_fingerprint,
+            ip_address = EXCLUDED.ip_address,
+            last_seen = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        `, [user.id, deviceId || null, deviceFingerprint || null, browserFingerprint || null, userIp]);
+      } catch (dbError) {
+        console.error('Failed to store fingerprint in database (login):', dbError);
+        // Don't fail login if fingerprint storage fails
+      }
+    }
 
     res.json({
       message: 'Login successful',

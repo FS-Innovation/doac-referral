@@ -40,48 +40,112 @@ export const trackReferralClick = async (req: Request, res: Response) => {
     console.log(`📍 Referral click from IP: ${ipAddress}, Code: ${code}`);
 
     // CRITICAL: Prevent self-clicking by comparing clicker's fingerprints with referral owner's
-    // Require BOTH IP + (device/fingerprint) match to avoid false positives (friends on same WiFi)
+    // INDUSTRY STANDARD: Multi-factor matching (device ID + fingerprints) WITHOUT IP requirement
+    // IP-only blocking REMOVED to support shared WiFi / VPN / legitimate IP changes
     const deviceId = req.get('x-device-id') || '';
     const deviceFingerprint = req.get('x-device-fingerprint') || '';
     const browserFingerprint = req.get('x-browser-fingerprint') || '';
 
-    // Check Redis for the owner's stored fingerprints (stored on login/activity)
-    const ownerIpKey = `user:${userId}:ip`;
-    const ownerDeviceIdKey = `user:${userId}:deviceid`;
-    const ownerDeviceFpKey = `user:${userId}:devicefp`;
-    const ownerBrowserFpKey = `user:${userId}:browserfp`;
-
-    const ownerIp = await redisClient.get(ownerIpKey);
-    const ownerDeviceId = await redisClient.get(ownerDeviceIdKey);
-    const ownerDeviceFp = await redisClient.get(ownerDeviceFpKey);
-    const ownerBrowserFp = await redisClient.get(ownerBrowserFpKey);
-
     let skipPointsAward = req.body.skipPointsAward === true;
-
-    // Multi-layered self-click detection (INDUSTRY STANDARD)
-    // Require BOTH IP match AND (device ID OR device fingerprint OR browser fingerprint) match
     let selfClickReason = '';
+    let matchScore = 0;
 
-    const ipMatches = ownerIp && ownerIp === ipAddress;
-    const deviceIdMatches = ownerDeviceId && deviceId && ownerDeviceId === deviceId;
-    const deviceFpMatches = ownerDeviceFp && deviceFingerprint && ownerDeviceFp === deviceFingerprint;
-    const browserFpMatches = ownerBrowserFp && browserFingerprint && ownerBrowserFp === browserFingerprint;
+    // STEP 1: Try Redis cache first (fast path - 24 hour cache)
+    const ownerDeviceId = await redisClient.get(`user:${userId}:deviceid`);
+    const ownerDeviceFp = await redisClient.get(`user:${userId}:devicefp`);
+    const ownerBrowserFp = await redisClient.get(`user:${userId}:browserfp`);
 
-    // Check 1: IP + Device ID match (most reliable - localStorage UUID)
-    if (ipMatches && deviceIdMatches) {
-      selfClickReason = `IP + Device ID match (${ipAddress}, ${deviceId.substring(0, 16)}...)`;
-    }
-    // Check 2: IP + Device Fingerprint match (catches localStorage clearers)
-    else if (ipMatches && deviceFpMatches) {
-      selfClickReason = `IP + Device fingerprint match (${ipAddress}, ${deviceFingerprint.substring(0, 16)}...)`;
-    }
-    // Check 3: IP + Browser Fingerprint match (catches different browsers on same device)
-    else if (ipMatches && browserFpMatches) {
-      selfClickReason = `IP + Browser fingerprint match (${ipAddress}, ${browserFingerprint.substring(0, 16)}...)`;
+    // STEP 2: Check database for persistent fingerprints (survives Redis expiry)
+    // Query all fingerprints for this user from last 90 days
+    let ownerFingerprints: any[] = [];
+    try {
+      const fpResult = await pool.query(
+        `SELECT device_id, device_fingerprint, browser_fingerprint, last_seen
+         FROM user_fingerprints
+         WHERE user_id = $1
+           AND last_seen > NOW() - INTERVAL '90 days'
+         ORDER BY last_seen DESC`,
+        [userId]
+      );
+      ownerFingerprints = fpResult.rows;
+    } catch (error) {
+      console.error('Error querying user fingerprints:', error);
     }
 
+    // STEP 3: Multi-factor matching algorithm (INDUSTRY STANDARD)
+    // PRIORITY: Device ID is the STRONGEST signal and should ALWAYS be checked first
+    // IP is used as TIEBREAKER ONLY when fingerprints are ambiguous
+
+    const checkMatch = (storedDeviceId: string | null, storedDeviceFp: string | null, storedBrowserFp: string | null, storedIp: string | null) => {
+      let score = 0;
+      const reasons: string[] = [];
+
+      // 1. DEVICE ID - Highest priority (UUID in localStorage)
+      // If Device ID matches, it's DEFINITELY the same device - INSTANT BLOCK
+      if (deviceId && storedDeviceId && deviceId === storedDeviceId) {
+        score += 100; // Overwhelming score - definitive match
+        reasons.push('Device ID match');
+        return { score, reasons }; // Return immediately - no need to check further
+      }
+
+      // 2. DEVICE FINGERPRINT - Hardware-based (GPU, CPU, screen)
+      if (deviceFingerprint && storedDeviceFp && deviceFingerprint === storedDeviceFp) {
+        score += 50;
+        reasons.push('Device fingerprint match');
+      }
+
+      // 3. BROWSER FINGERPRINT - Software-based (canvas, audio, fonts)
+      if (browserFingerprint && storedBrowserFp && browserFingerprint === storedBrowserFp) {
+        score += 30;
+        reasons.push('Browser fingerprint match');
+      }
+
+      // 4. IP ADDRESS - TIEBREAKER ONLY (not primary signal)
+      // Used to distinguish between:
+      //   - Rare collision: Two people with similar hardware (allow)
+      //   - Same person, fingerprint changed slightly (block)
+      const ipMatches = storedIp && ipAddress && storedIp === ipAddress;
+      if (ipMatches && score > 0) {
+        score += 10; // Bonus points if IP also matches (increases confidence)
+        reasons.push('IP match (tiebreaker)');
+      }
+
+      return { score, reasons };
+    };
+
+    // Check Redis cached fingerprints
+    const ownerIp = await redisClient.get(`user:${userId}:ip`);
+    const redisMatch = checkMatch(ownerDeviceId, ownerDeviceFp, ownerBrowserFp, ownerIp);
+
+    // Device ID match = instant block (score 100)
+    // Device FP + Browser FP = high confidence (score 80)
+    // Device FP + Browser FP + IP = very high confidence (score 90)
+    if (redisMatch.score >= 80) {
+      matchScore = redisMatch.score;
+      selfClickReason = `Redis cache: ${redisMatch.reasons.join(' + ')}`;
+    }
+
+    // Check database fingerprints (only if Redis didn't find strong match)
+    if (!selfClickReason && ownerFingerprints.length > 0) {
+      for (const fp of ownerFingerprints) {
+        const dbMatch = checkMatch(fp.device_id, fp.device_fingerprint, fp.browser_fingerprint, fp.ip_address);
+        if (dbMatch.score >= 80) {
+          matchScore = dbMatch.score;
+          selfClickReason = `Database: ${dbMatch.reasons.join(' + ')} (last seen: ${fp.last_seen})`;
+          break; // Found strong match, stop checking
+        }
+      }
+    }
+
+    // STEP 4: Block if strong match found
+    // Score 100 = Device ID match → BLOCK (100% same device)
+    // Score 90 = Device FP + Browser FP + IP → BLOCK (99% same device)
+    // Score 80 = Device FP + Browser FP → BLOCK (95% same device)
+    // Score <80 = Not enough evidence → ALLOW (protects legitimate users)
     if (selfClickReason) {
-      console.warn(`🚨 SELF-CLICK DETECTED: User ${userId} clicked their own referral link - ${selfClickReason}`);
+      console.warn(`🚨 SELF-CLICK DETECTED: User ${userId} clicked their own referral link`);
+      console.warn(`   Match Score: ${matchScore}/18 | Reason: ${selfClickReason}`);
+      console.warn(`   Clicker Device ID: ${deviceId.substring(0, 16)}...`);
       skipPointsAward = true;
     }
 
@@ -91,11 +155,26 @@ export const trackReferralClick = async (req: Request, res: Response) => {
     try {
       await client.query('BEGIN');
 
-      // Always insert click record for tracking
+      // Collect all fraud flags for forensic logging
+      const fraudFlags: string[] = [];
+      if (selfClickReason) fraudFlags.push(`self_click:${selfClickReason}`);
+      if (req.body.fraudReason) fraudFlags.push(req.body.fraudReason);
+
+      // Always insert click record with FULL forensic data
       await client.query(
-        `INSERT INTO referral_clicks (user_id, ip_address, user_agent)
-         VALUES ($1, $2, $3)`,
-        [userId, ipAddress, userAgent]
+        `INSERT INTO referral_clicks
+          (user_id, ip_address, user_agent, device_id, device_fingerprint, browser_fingerprint, fraud_flags, points_awarded)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          userId,
+          ipAddress,
+          userAgent,
+          deviceId || null,
+          deviceFingerprint || null,
+          browserFingerprint || null,
+          fraudFlags.length > 0 ? fraudFlags : null,
+          !skipPointsAward
+        ]
       );
 
       // Only award points if not flagged as potential fraud
@@ -104,8 +183,10 @@ export const trackReferralClick = async (req: Request, res: Response) => {
           'UPDATE users SET points = points + 1 WHERE id = $1',
           [userId]
         );
+        console.log(`✅ Points awarded for code ${code} (IP: ${ipAddress}, Device: ${deviceId.substring(0, 8)}...)`);
       } else {
-        console.warn(`⚠️  Points not awarded for code ${code} from IP ${ipAddress} (fraud prevention)`);
+        console.warn(`⚠️  Points NOT awarded for code ${code} from IP ${ipAddress} (fraud prevention)`);
+        console.warn(`   Fraud flags: ${JSON.stringify(fraudFlags)}`);
       }
 
       await client.query('COMMIT');

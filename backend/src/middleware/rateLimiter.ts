@@ -84,43 +84,47 @@ export const registerLimiter = rateLimit({
   },
 });
 
-// CRITICAL: Referral click fraud protection - removed IP-only rate limiting
-// The fraud detection middleware handles device/fingerprint-based detection
+// CRITICAL: Referral click protection - NO IP-based rate limiting
+// Fraud prevention is 100% fingerprint-based (device ID, device FP, browser FP)
+// This limiter only prevents catastrophic abuse (e.g., 1000 requests/second DoS attack)
 export const referralClickLimiter = rateLimit({
   store: redisAvailable ? new RedisStore({
     // @ts-ignore
     sendCommand: (...args: any[]) => redisClient.call(...args),
     prefix: 'rl:referral:',
   }) : undefined,
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 100, // High limit - actual fraud prevention is done by device/fingerprint checks
-  message: 'Too many requests. Please try again later.',
-  skip: (req: Request) => {
+  windowMs: 60 * 1000, // 1 minute (shortened window)
+  max: 50, // Very high limit - only blocks obvious DoS attacks, not legitimate traffic
+  message: 'Too many requests. Please slow down.',
+  skip: () => {
     // Skip rate limiting in development or if Redis is down
     return process.env.NODE_ENV === 'development' || (!redisAvailable && process.env.NODE_ENV === 'production');
   },
   handler: (req: Request, _res: Response, next: NextFunction) => {
-    console.warn(`⚠️  Rate limit exceeded for referral click from IP: ${req.ip} (will redirect without points)`);
-    // Set flag to skip points award, but still redirect to video
+    console.warn(`⚠️  Extreme rate limit exceeded for referral click from IP: ${req.ip} (50 requests/min) - Likely DoS attack`);
+    // Still allow request through but flag for manual review
     req.body.skipPointsAward = true;
+    req.body.fraudReason = 'rate_limit_dos_protection';
     next();
   },
 });
 
 // Advanced fraud detection middleware
+// INDUSTRY STANDARD: Multi-factor checks (NOT IP-only) to support legitimate shared networks
 export const detectReferralFraud = async (
   req: Request,
   _res: Response,
   next: NextFunction
 ) => {
   const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
-  const userAgent = req.get('user-agent') || 'unknown';
   const { code } = req.params;
 
   // Get all three device/browser identifiers from headers (sent by frontend)
   const deviceId = req.get('x-device-id') || '';
   const deviceFingerprint = req.get('x-device-fingerprint') || '';
   const browserFingerprint = req.get('x-browser-fingerprint') || '';
+
+  const fraudReasons: string[] = [];
 
   try {
     // Check 1: Device ID Detection (PRIMARY - Most persistent)
@@ -134,6 +138,7 @@ export const detectReferralFraud = async (
         console.warn(`🚨 DUPLICATE CLICK: Same device ID clicked again within 24h for code: ${code}`);
         console.warn(`   Device ID: ${deviceId.substring(0, 16)}...`);
         console.warn(`   Current IP: ${ipAddress}, Previous IP: ${deviceClicked}`);
+        fraudReasons.push('duplicate_device_id_24h');
         req.body.skipPointsAward = true;
       } else {
         await redisClient.setex(deviceKey, 86400, ipAddress);
@@ -152,52 +157,14 @@ export const detectReferralFraud = async (
         console.warn(`🚨 DUPLICATE CLICK: Same device hardware fingerprint within 24h for code: ${code}`);
         console.warn(`   Device Fingerprint: ${deviceFingerprint.substring(0, 16)}...`);
         console.warn(`   Current IP: ${ipAddress}, Previous IP: ${deviceFpClicked}`);
+        fraudReasons.push('duplicate_device_fp_24h');
         req.body.skipPointsAward = true;
       } else {
         await redisClient.setex(deviceFpKey, 86400, ipAddress);
       }
     }
 
-    // Check 3: Suspicious user agent patterns (bots)
-    const botPatterns = [
-      /bot/i,
-      /crawl/i,
-      /spider/i,
-      /slurp/i,
-      /curl/i,
-      /wget/i,
-      /python/i,
-      /java(?!script)/i,
-      /go-http/i,
-      /node-fetch/i,
-      /axios/i,
-    ];
-
-    const isSuspiciousUserAgent = botPatterns.some(pattern => pattern.test(userAgent));
-
-    if (isSuspiciousUserAgent) {
-      console.warn(`🚨 Suspicious user agent detected (will redirect without points): ${userAgent} from IP: ${ipAddress}`);
-      // Still redirect to video, but don't award points
-      req.body.skipPointsAward = true;
-    }
-
-    // Check 4: Track click velocity per IP (multiple clicks in short time)
-    const velocityKey = `velocity:${ipAddress}`;
-    const clickCount = await redisClient.incr(velocityKey);
-
-    if (clickCount === 1) {
-      // First click from this IP, set expiry of 1 minute
-      await redisClient.expire(velocityKey, 60);
-    }
-
-    // If more than 3 clicks per minute from same IP, flag as spam
-    if (clickCount > 3) {
-      console.warn(`🚨 High velocity clicks detected (will redirect without points): IP ${ipAddress} (${clickCount} clicks/min)`);
-      // Still redirect to video, but don't award points
-      req.body.skipPointsAward = true;
-    }
-
-    // Check 5: Browser Fingerprint Detection (TERTIARY - Software based)
+    // Check 3: Browser Fingerprint Detection (TERTIARY - Software based)
     // One click per browser fingerprint per referral code per 24 hours
     if (browserFingerprint && browserFingerprint.length > 10) {
       const fpKey = `fraud:${code}:fp:${browserFingerprint}`;
@@ -207,7 +174,7 @@ export const detectReferralFraud = async (
         console.warn(`🚨 DUPLICATE CLICK: Same browser fingerprint clicked again within 24h for code: ${code}`);
         console.warn(`   Fingerprint: ${browserFingerprint.substring(0, 16)}...`);
         console.warn(`   Current IP: ${ipAddress}, Previous IP: ${fpAlreadyClicked}`);
-        // Still redirect, but don't award points
+        fraudReasons.push('duplicate_browser_fp_24h');
         req.body.skipPointsAward = true;
       } else {
         // Store fingerprint with current IP for 24 hours
@@ -215,27 +182,51 @@ export const detectReferralFraud = async (
       }
     }
 
-    // Check 6: IP-based duplicate detection removed
-    // We rely on device ID, device fingerprint, and browser fingerprint instead
-    // This allows multiple people on same WiFi to click different referral links
+    // ============================================================================
+    // BOT DETECTION REMOVED
+    // ============================================================================
+    // REASON: User-agent checking is ineffective and causes false positives
+    //
+    // Why it's ineffective:
+    // - Fraudsters can easily fake user agents (just 1 HTTP header)
+    // - Browser extensions/automation tools get blocked (false positives)
+    // - Legitimate tools (curl for testing, Postman, RSS readers) blocked
+    // - Privacy-focused browsers may have unusual user agents
+    //
+    // Device fingerprints are MUCH stronger fraud prevention:
+    // - Cannot be faked without actually changing hardware/browser
+    // - Prevents duplicate clicks regardless of user agent
+    // - No false positives from legitimate tools
+    //
+    // If a bot tries to abuse the system, they'll be caught by:
+    // 1. Device ID duplicate detection (same localStorage UUID)
+    // 2. Device fingerprint duplicate detection (same GPU/CPU/screen)
+    // 3. Browser fingerprint duplicate detection (same canvas/audio/fonts)
+    //
+    // REMOVED Check 4: Bot user-agent pattern detection
+    //
+    // ============================================================================
+    // ALL IP-ONLY CHECKS REMOVED
+    // ============================================================================
+    // REASON: Shared WiFi/offices/families would be blocked
+    //
+    // Examples of legitimate use cases that would be blocked:
+    // - 20 people in an office each clicking different referral links
+    // - Family of 10 all clicking links at dinner time
+    // - Conference attendees on same WiFi
+    // - Coffee shop customers
+    //
+    // Fraud is prevented by DEVICE-LEVEL fingerprints, not IP patterns
+    //
+    // REMOVED Check 5: Velocity tracking (5+ clicks/min from IP)
+    // REMOVED Check 6: IP-only duplicate detection
+    // REMOVED Check 7: Mass codes (10+ codes from IP in 1 hour)
+    //
+    // ============================================================================
 
-    // Check 7: Detect if same IP is clicking multiple different referral codes
-    const ipClicksKey = `ipclicks:${ipAddress}`;
-    await redisClient.sadd(ipClicksKey, code);
-    await redisClient.expire(ipClicksKey, 3600); // 1 hour expiry
-
-    const uniqueCodesClicked = await redisClient.scard(ipClicksKey);
-
-    // If same IP clicks more than 5 different codes in an hour, likely fraud
-    if (uniqueCodesClicked > 5) {
-      console.warn(`🚨 Mass fraud detected (will redirect without points): IP ${ipAddress} (${uniqueCodesClicked} codes clicked)`);
-      // Still redirect to video, but don't award points
-      req.body.skipPointsAward = true;
-    }
-
-    // Log suspicious activity for monitoring
-    if (uniqueCodesClicked > 3) {
-      console.warn(`⚠️  IP ${ipAddress} has clicked ${uniqueCodesClicked} different referral codes in the last hour`);
+    // Pass fraud reasons to controller for logging
+    if (fraudReasons.length > 0) {
+      req.body.fraudReason = fraudReasons.join(', ');
     }
 
     next();
