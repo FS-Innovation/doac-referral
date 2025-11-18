@@ -76,7 +76,19 @@ spec:
               name: redis-url
               key: latest
 
-        # Email configuration
+        # Email configuration - SendGrid (primary)
+        - name: SENDGRID_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: sendgrid-api-key
+              key: latest
+        - name: SENDGRID_FROM_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: sendgrid-from-email
+              key: latest
+
+        # Email configuration - SMTP (fallback, optional)
         - name: EMAIL_HOST
           value: "smtp.gmail.com"
         - name: EMAIL_PORT
