@@ -34,17 +34,16 @@ api.interceptors.request.use(
   }
 );
 
-// Handle 401 errors by redirecting to landing (but not during initial auth check)
+// Handle 401 errors by redirecting to landing (but not during auth operations)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // CRITICAL FIX: Don't redirect on 401 during profile check (prevents infinite loop)
-    // Only redirect if it's NOT the initial auth check endpoint
-    const isProfileCheck = error.config?.url?.includes('/auth/profile');
+    // CRITICAL FIX: Don't redirect on 401 during auth operations
+    // Only redirect if it's NOT an auth endpoint (login, register, profile check, etc.)
+    const isAuthEndpoint = error.config?.url?.includes('/auth/');
 
-    if (error.response?.status === 401 && !isProfileCheck) {
+    if (error.response?.status === 401 && !isAuthEndpoint) {
       // Token expired or invalid on a protected route - redirect to landing page
-      console.log('Authentication expired, redirecting to login...');
       window.location.href = '/';
     }
     return Promise.reject(error);
@@ -56,7 +55,10 @@ export const authAPI = {
   register: (email, password) => api.post('/auth/register', { email, password }),
   login: (email, password) => api.post('/auth/login', { email, password }),
   logout: () => api.post('/auth/logout'),
-  getProfile: () => api.get('/auth/profile')
+  getProfile: () => api.get('/auth/profile'),
+  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
+  validateResetToken: (token) => api.post('/auth/validate-reset-token', { token }),
+  resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword })
 };
 
 // User endpoints

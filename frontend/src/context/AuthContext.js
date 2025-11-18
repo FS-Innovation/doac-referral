@@ -213,12 +213,30 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const forgotPassword = async (email) => {
+    const response = await authAPI.forgotPassword(email);
+    return response.data;
+  };
+
+  const validateResetToken = async (token) => {
+    const response = await authAPI.validateResetToken(token);
+    return response.data;
+  };
+
+  const resetPassword = async (token, newPassword) => {
+    const response = await authAPI.resetPassword(token, newPassword);
+    return response.data;
+  };
+
   const value = {
     user,
     loading,
     login,
     register,
     logout,
+    forgotPassword,
+    validateResetToken,
+    resetPassword,
     isAuthenticated: !!user,
     isAdmin: user?.isAdmin || false
   };

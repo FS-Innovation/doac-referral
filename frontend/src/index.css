@@ -706,16 +706,10 @@ table th {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(220, 53, 69, 0.1);
-  border: 1.5px solid rgba(220, 53, 69, 0.3);
   color: #ff6b7a;
-  padding: 12px 16px;
-  border-radius: 10px;
   margin-bottom: 16px;
   font-size: 13px;
   font-weight: 500;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 
 .modal-error svg {
@@ -1155,5 +1149,226 @@ table th {
   .strength-bar {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+/* ============================================
+   RESET PASSWORD PAGE STYLES
+   ============================================ */
+
+.reset-password-page {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #000000;
+  padding: 20px;
+  overflow: hidden;
+}
+
+.reset-password-container {
+  width: 100%;
+  max-width: 480px;
+}
+
+.reset-password-card {
+  background-image:
+    linear-gradient(#0D0D0D, #0D0D0D),
+    linear-gradient(135deg, #919191 0%, #5A2F30 100%);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  border: 1px solid transparent;
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+}
+
+.reset-password-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.reset-password-header h1 {
+  color: #ffffff;
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.reset-password-header p {
+  color: #999999;
+  font-size: 15px;
+}
+
+.reset-password-header p strong {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.reset-password-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Loading State */
+.loading-spinner {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.loading-spinner .spinner {
+  display: inline-block;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 20px;
+}
+
+.loading-spinner p {
+  color: #999999;
+  font-size: 16px;
+}
+
+/* Error State */
+.error-state {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.error-state svg {
+  color: #ff6b7a;
+  margin-bottom: 20px;
+}
+
+.error-state h2 {
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.error-state p {
+  color: #999999;
+  font-size: 15px;
+  margin-bottom: 24px;
+}
+
+/* Reset Password Error State */
+.reset-password-error-state {
+  text-align: center;
+  padding: 48px 32px;
+}
+
+.error-icon-large {
+  margin-bottom: 24px;
+}
+
+.error-icon-large svg {
+  color: #ff6b7a;
+  stroke-width: 1.5;
+}
+
+.reset-password-error-state h2 {
+  color: #ffffff;
+  font-size: 26px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.reset-password-error-state .error-message {
+  color: #cccccc;
+  font-size: 15px;
+  line-height: 1.6;
+  margin-bottom: 16px;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.reset-password-error-state .error-advice {
+  color: #999999;
+  font-size: 14px;
+  margin-bottom: 32px;
+  font-style: italic;
+}
+
+.reset-password-error-state .modal-submit {
+  margin-top: 8px;
+}
+
+/* Success State */
+.success-state {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.success-state svg {
+  color: #4ade80;
+  margin-bottom: 20px;
+}
+
+.success-state h2 {
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.success-state p {
+  color: #999999;
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.redirect-notice {
+  background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 50%, #5A2F30 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 500;
+  margin-top: 16px !important;
+}
+
+/* Security Notice */
+.security-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: rgba(90, 47, 48, 0.1);
+  border: 1px solid rgba(145, 145, 145, 0.2);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 8px;
+}
+
+.security-notice svg {
+  color: #999999;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.security-notice p {
+  color: #999999;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .reset-password-card {
+    padding: 28px 24px;
+  }
+
+  .reset-password-header h1 {
+    font-size: 24px;
+  }
+
+  .reset-password-header p {
+    font-size: 14px;
   }
 }

@@ -1,9 +1,12 @@
 import nodemailer from 'nodemailer';
 import sgMail from '@sendgrid/mail';
 
-// Initialize SendGrid with API key
-if (process.env.EMAIL_PASS && process.env.EMAIL_PASS.startsWith('SG.')) {
-  sgMail.setApiKey(process.env.EMAIL_PASS);
+// Initialize SendGrid with API key (prefer SENDGRID_API_KEY, fallback to EMAIL_PASS)
+const sendgridApiKey = process.env.SENDGRID_API_KEY ||
+  (process.env.EMAIL_PASS && process.env.EMAIL_PASS.startsWith('SG.') ? process.env.EMAIL_PASS : null);
+
+if (sendgridApiKey) {
+  sgMail.setApiKey(sendgridApiKey);
 }
 
 interface PurchaseNotificationData {
@@ -78,16 +81,19 @@ export const sendPurchaseNotification = async (data: PurchaseNotificationData) =
   }
 };
 
-export const sendPasswordResetEmail = async (email: string, resetCode: string) => {
+export const sendPasswordResetEmail = async (email: string, resetUrl: string) => {
   // Use SendGrid SDK if available
-  if (process.env.EMAIL_PASS && process.env.EMAIL_PASS.startsWith('SG.')) {
+  if (sendgridApiKey) {
     const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'innovation@flightstory.com';
     try {
       await sgMail.send({
         to: email,
-        from: fromEmail,
-        subject: 'Password Reset Code - DOAC Perks',
-        text: `Your password reset code is: ${resetCode}. This code expires in 10 minutes.`,
+        from: {
+          email: fromEmail,
+          name: 'DOAC Team'
+        },
+        subject: 'Reset Your Password - DOAC Perks',
+        text: `You requested to reset your password. Click the link below to reset it:\n\n${resetUrl}\n\nThis link will expire in 10 minutes. If you did not request this, please ignore this email.`,
         html: `
         <!DOCTYPE html>
         <html>
@@ -98,111 +104,149 @@ export const sendPasswordResetEmail = async (email: string, resetCode: string) =
             body {
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
               line-height: 1.6;
-              color: #333;
+              color: #ffffff;
               max-width: 600px;
               margin: 0 auto;
-              padding: 20px;
+              padding: 0;
+              background-color: #000000;
             }
             .container {
-              background-color: #f9f9f9;
-              border-radius: 8px;
-              padding: 30px;
-              border: 1px solid #e0e0e0;
+              background-color: #0D0D0D;
+              border: 1px solid #333333;
+              border-radius: 0;
+              padding: 0;
             }
-            .header {
+            .logo-header {
               text-align: center;
-              margin-bottom: 30px;
+              padding: 40px 20px 30px;
+              background-color: #000000;
+            }
+            .logo-header img {
+              width: 80px;
+              height: 80px;
+            }
+            .content {
+              padding: 30px 40px;
+              text-align: center;
             }
             h1 {
-              color: #2563eb;
-              margin: 0;
+              color: #ffffff;
+              margin: 0 0 20px 0;
               font-size: 24px;
-            }
-            .code-container {
-              background-color: #fff;
-              border: 2px solid #2563eb;
-              border-radius: 8px;
-              padding: 20px;
+              font-weight: 600;
               text-align: center;
-              margin: 30px 0;
             }
-            .code {
-              font-size: 36px;
-              font-weight: bold;
-              letter-spacing: 8px;
-              color: #2563eb;
-              font-family: 'Courier New', monospace;
+            p {
+              color: #cccccc;
+              margin: 16px auto;
+              font-size: 15px;
+              text-align: center;
             }
-            .warning {
-              background-color: #fef3c7;
-              border-left: 4px solid #f59e0b;
-              padding: 15px;
+            .reset-button {
+              display: inline-block;
+              margin: 30px auto;
+              padding: 14px 32px;
+              background: #0D0D0D;
+              background-clip: padding-box;
+              border: 2px solid transparent;
+              border-radius: 8px;
+              background-image: linear-gradient(#0D0D0D, #0D0D0D), linear-gradient(135deg, #919191 0%, #5A2F30 100%);
+              background-origin: border-box;
+              background-clip: padding-box, border-box;
+              color: #ffffff !important;
+              text-align: center;
+              text-decoration: none;
+              font-size: 16px;
+              font-weight: 600;
+            }
+            .expiry-notice {
+              text-align: center;
+              color: #999999;
+              font-size: 14px;
               margin: 20px 0;
-              border-radius: 4px;
+            }
+            .expiry-notice strong {
+              color: #ffffff;
+            }
+            .security-notice {
+              background-color: #1a1a1a;
+              border-left: 3px solid #5A2F30;
+              padding: 16px;
+              margin: 25px auto;
+              max-width: 500px;
+              color: #cccccc;
+              font-size: 14px;
+              text-align: center;
+            }
+            .security-notice strong {
+              color: #ffffff;
+            }
+            .alt-link {
+              background-color: #1a1a1a;
+              border: 1px solid #333333;
+              border-radius: 8px;
+              padding: 16px;
+              margin: 25px auto;
+              max-width: 500px;
+              word-break: break-all;
+              text-align: center;
+            }
+            .alt-link p {
+              margin: 0 0 10px 0;
+              font-size: 13px;
+              color: #999999;
+              text-align: center;
+            }
+            .alt-link a {
+              color: #ffffff;
+              font-size: 12px;
+              text-decoration: underline;
             }
             .footer {
-              margin-top: 30px;
-              padding-top: 20px;
-              border-top: 1px solid #e0e0e0;
-              font-size: 12px;
-              color: #666;
+              margin-top: 40px;
+              padding: 20px 40px 30px;
+              border-top: 1px solid #333333;
+              font-size: 13px;
+              color: #666666;
               text-align: center;
             }
-            .security-tips {
-              background-color: #fff;
-              border-radius: 4px;
-              padding: 15px;
-              margin: 20px 0;
-            }
-            .security-tips h3 {
-              margin-top: 0;
-              color: #2563eb;
-              font-size: 16px;
-            }
-            ul {
-              margin: 10px 0;
-              padding-left: 20px;
-            }
-            li {
-              margin: 5px 0;
+            .footer p {
+              margin: 8px 0;
+              color: #666666;
             }
           </style>
         </head>
         <body>
           <div class="container">
-            <div class="header">
-              <h1>Password Reset Request</h1>
+            <div class="logo-header">
+              <img src="https://storage.googleapis.com/doac-perks/doac-icon.png" alt="DOAC" />
             </div>
 
-            <p>Hello,</p>
+            <div class="content">
+              <h1>Reset Your Password</h1>
 
-            <p>You requested to reset your password. Use the verification code below to continue:</p>
+              <p>You requested to reset your password for your DOAC Perks account. Click the button below to create a new password:</p>
 
-            <div class="code-container">
-              <div class="code">${resetCode}</div>
-            </div>
+              <a href="${resetUrl}" class="reset-button">Reset My Password</a>
 
-            <p style="text-align: center; color: #666; font-size: 14px;">
-              This code will expire in <strong>10 minutes</strong>
-            </p>
+              <p class="expiry-notice">
+                This link will expire in <strong>10 minutes</strong> for security reasons.
+              </p>
 
-            <div class="warning">
-              <strong>⚠️ Security Notice:</strong> If you did not request this password reset, please ignore this email. Your account remains secure.
-            </div>
+              <div class="security-notice">
+                <strong>Security Notice:</strong> If you did not request this password reset, please ignore this email. Your account will remain secure and no changes will be made.
+              </div>
 
-            <div class="security-tips">
-              <h3>🔒 Security Tips</h3>
-              <ul>
-                <li>Never share this code with anyone</li>
-                <li>Our support team will never ask for this code</li>
-                <li>This code can only be used once</li>
-                <li>It must be used from the same device that requested it</li>
-              </ul>
+              <div class="alt-link">
+                <p><strong>Button not working?</strong></p>
+                <p>Copy and paste this link into your browser:</p>
+                <a href="${resetUrl}">${resetUrl}</a>
+              </div>
             </div>
 
             <div class="footer">
-              <p>This is an automated message from the Referral System.</p>
-              <p>If you have any questions or concerns, please contact our support team.</p>
+              <p>This is an automated message from DOAC Perks.</p>
+              <p>Please do not reply to this email.</p>
             </div>
           </div>
         </body>
@@ -228,9 +272,10 @@ export const sendPasswordResetEmail = async (email: string, resetCode: string) =
 
   try {
     await transporter.sendMail({
-      from: `"DOAC Perks Security" <innovation@flightstory.com>`,
+      from: `"DOAC Team" <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: 'Password Reset Code',
+      subject: 'Reset Your Password - DOAC Perks',
+      text: `You requested to reset your password. Click the link below to reset it:\n\n${resetUrl}\n\nThis link will expire in 10 minutes. If you did not request this, please ignore this email.`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -241,111 +286,149 @@ export const sendPasswordResetEmail = async (email: string, resetCode: string) =
             body {
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
               line-height: 1.6;
-              color: #333;
+              color: #ffffff;
               max-width: 600px;
               margin: 0 auto;
-              padding: 20px;
+              padding: 0;
+              background-color: #000000;
             }
             .container {
-              background-color: #f9f9f9;
-              border-radius: 8px;
-              padding: 30px;
-              border: 1px solid #e0e0e0;
+              background-color: #0D0D0D;
+              border: 1px solid #333333;
+              border-radius: 0;
+              padding: 0;
             }
-            .header {
+            .logo-header {
               text-align: center;
-              margin-bottom: 30px;
+              padding: 40px 20px 30px;
+              background-color: #000000;
+            }
+            .logo-header img {
+              width: 80px;
+              height: 80px;
+            }
+            .content {
+              padding: 30px 40px;
+              text-align: center;
             }
             h1 {
-              color: #2563eb;
-              margin: 0;
+              color: #ffffff;
+              margin: 0 0 20px 0;
               font-size: 24px;
-            }
-            .code-container {
-              background-color: #fff;
-              border: 2px solid #2563eb;
-              border-radius: 8px;
-              padding: 20px;
+              font-weight: 600;
               text-align: center;
-              margin: 30px 0;
             }
-            .code {
-              font-size: 36px;
-              font-weight: bold;
-              letter-spacing: 8px;
-              color: #2563eb;
-              font-family: 'Courier New', monospace;
+            p {
+              color: #cccccc;
+              margin: 16px auto;
+              font-size: 15px;
+              text-align: center;
             }
-            .warning {
-              background-color: #fef3c7;
-              border-left: 4px solid #f59e0b;
-              padding: 15px;
+            .reset-button {
+              display: inline-block;
+              margin: 30px auto;
+              padding: 14px 32px;
+              background: #0D0D0D;
+              background-clip: padding-box;
+              border: 2px solid transparent;
+              border-radius: 8px;
+              background-image: linear-gradient(#0D0D0D, #0D0D0D), linear-gradient(135deg, #919191 0%, #5A2F30 100%);
+              background-origin: border-box;
+              background-clip: padding-box, border-box;
+              color: #ffffff !important;
+              text-align: center;
+              text-decoration: none;
+              font-size: 16px;
+              font-weight: 600;
+            }
+            .expiry-notice {
+              text-align: center;
+              color: #999999;
+              font-size: 14px;
               margin: 20px 0;
-              border-radius: 4px;
+            }
+            .expiry-notice strong {
+              color: #ffffff;
+            }
+            .security-notice {
+              background-color: #1a1a1a;
+              border-left: 3px solid #5A2F30;
+              padding: 16px;
+              margin: 25px auto;
+              max-width: 500px;
+              color: #cccccc;
+              font-size: 14px;
+              text-align: center;
+            }
+            .security-notice strong {
+              color: #ffffff;
+            }
+            .alt-link {
+              background-color: #1a1a1a;
+              border: 1px solid #333333;
+              border-radius: 8px;
+              padding: 16px;
+              margin: 25px auto;
+              max-width: 500px;
+              word-break: break-all;
+              text-align: center;
+            }
+            .alt-link p {
+              margin: 0 0 10px 0;
+              font-size: 13px;
+              color: #999999;
+              text-align: center;
+            }
+            .alt-link a {
+              color: #ffffff;
+              font-size: 12px;
+              text-decoration: underline;
             }
             .footer {
-              margin-top: 30px;
-              padding-top: 20px;
-              border-top: 1px solid #e0e0e0;
-              font-size: 12px;
-              color: #666;
+              margin-top: 40px;
+              padding: 20px 40px 30px;
+              border-top: 1px solid #333333;
+              font-size: 13px;
+              color: #666666;
               text-align: center;
             }
-            .security-tips {
-              background-color: #fff;
-              border-radius: 4px;
-              padding: 15px;
-              margin: 20px 0;
-            }
-            .security-tips h3 {
-              margin-top: 0;
-              color: #2563eb;
-              font-size: 16px;
-            }
-            ul {
-              margin: 10px 0;
-              padding-left: 20px;
-            }
-            li {
-              margin: 5px 0;
+            .footer p {
+              margin: 8px 0;
+              color: #666666;
             }
           </style>
         </head>
         <body>
           <div class="container">
-            <div class="header">
-              <h1>Password Reset Request</h1>
+            <div class="logo-header">
+              <img src="https://storage.googleapis.com/doac-perks/doac-icon.png" alt="DOAC" />
             </div>
 
-            <p>Hello,</p>
+            <div class="content">
+              <h1>Reset Your Password</h1>
 
-            <p>You requested to reset your password. Use the verification code below to continue:</p>
+              <p>You requested to reset your password for your DOAC Perks account. Click the button below to create a new password:</p>
 
-            <div class="code-container">
-              <div class="code">${resetCode}</div>
-            </div>
+              <a href="${resetUrl}" class="reset-button">Reset My Password</a>
 
-            <p style="text-align: center; color: #666; font-size: 14px;">
-              This code will expire in <strong>10 minutes</strong>
-            </p>
+              <p class="expiry-notice">
+                This link will expire in <strong>10 minutes</strong> for security reasons.
+              </p>
 
-            <div class="warning">
-              <strong>⚠️ Security Notice:</strong> If you did not request this password reset, please ignore this email. Your account remains secure.
-            </div>
+              <div class="security-notice">
+                <strong>Security Notice:</strong> If you did not request this password reset, please ignore this email. Your account will remain secure and no changes will be made.
+              </div>
 
-            <div class="security-tips">
-              <h3>🔒 Security Tips</h3>
-              <ul>
-                <li>Never share this code with anyone</li>
-                <li>Our support team will never ask for this code</li>
-                <li>This code can only be used once</li>
-                <li>It must be used from the same device that requested it</li>
-              </ul>
+              <div class="alt-link">
+                <p><strong>Button not working?</strong></p>
+                <p>Copy and paste this link into your browser:</p>
+                <a href="${resetUrl}">${resetUrl}</a>
+              </div>
             </div>
 
             <div class="footer">
-              <p>This is an automated message from the Referral System.</p>
-              <p>If you have any questions or concerns, please contact our support team.</p>
+              <p>This is an automated message from DOAC Perks.</p>
+              <p>Please do not reply to this email.</p>
             </div>
           </div>
         </body>

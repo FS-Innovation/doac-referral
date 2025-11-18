@@ -71,17 +71,22 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 -- Password reset tokens table
--- Codes expire after 10 minutes
--- All previous codes are voided when a new code is sent
--- Codes are voided immediately when used
+-- Tokens are unique URL-based links that expire after 10 minutes
+-- All previous tokens are invalidated when:
+--   1. User requests a new reset link
+--   2. User successfully resets their password
+--   3. Token expires (10 minutes)
+-- Tokens are hashed (SHA-256) before storage for security
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
   id SERIAL PRIMARY KEY,
   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-  code_hash VARCHAR(255) NOT NULL,
-  device_fingerprint VARCHAR(255) NOT NULL,
+  token_hash VARCHAR(255) NOT NULL UNIQUE,
   expires_at TIMESTAMP NOT NULL,
   used BOOLEAN DEFAULT FALSE,
   used_at TIMESTAMP,
+  invalidated BOOLEAN DEFAULT FALSE,
+  invalidated_at TIMESTAMP,
+  invalidation_reason VARCHAR(50), -- 'new_request', 'password_reset', 'expired', 'manual'
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -96,4 +101,7 @@ CREATE INDEX IF NOT EXISTS idx_user_fingerprints_last_seen ON user_fingerprints(
 CREATE INDEX IF NOT EXISTS idx_purchases_user_id ON purchases(user_id);
 CREATE INDEX IF NOT EXISTS idx_users_referral_code ON users(referral_code);
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token_hash ON password_reset_tokens(token_hash);
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_used ON password_reset_tokens(used);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_invalidated ON password_reset_tokens(invalidated);

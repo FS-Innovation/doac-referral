@@ -6,6 +6,7 @@ import pool from '../config/database';
 import redisClient from '../config/redis';
 import { User } from '../types';
 import crypto from 'crypto';
+import { sendPasswordResetEmail } from '../services/emailService';
 
 export const register = async (req: Request, res: Response) => {
   const { email, password } = req.body;
@@ -129,7 +130,7 @@ export const login = async (req: Request, res: Response) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Incorrect email or password' });
     }
 
     const user = result.rows[0];
@@ -138,7 +139,7 @@ export const login = async (req: Request, res: Response) => {
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
 
     if (!isValidPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Incorrect email or password' });
     }
 
     // Generate JWT token
@@ -255,18 +256,16 @@ export const logout = async (_req: Request, res: Response) => {
   }
 };
 
-// Generate cryptographically secure 6-digit code
-const generateResetCode = (): string => {
-  // Generate a random number between 100000 and 999999
-  const buffer = crypto.randomBytes(4);
-  const num = buffer.readUInt32BE(0);
-  const code = (num % 900000) + 100000;
-  return code.toString();
+// Generate cryptographically secure unique reset token (URL-safe)
+const generateResetToken = (): string => {
+  // Generate 32 bytes of random data = 256 bits (same security as SHA-256)
+  // Convert to URL-safe base64 (no +, /, or = characters)
+  return crypto.randomBytes(32).toString('base64url');
 };
 
-// Hash the reset code for secure storage
-const hashResetCode = (code: string): string => {
-  return crypto.createHash('sha256').update(code).digest('hex');
+// Hash the reset token for secure storage (SHA-256)
+const hashResetToken = (token: string): string => {
+  return crypto.createHash('sha256').update(token).digest('hex');
 };
 
 // Timing-safe comparison to prevent timing attacks
@@ -284,16 +283,10 @@ export const forgotPassword = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Valid email is required' });
     }
 
-    // Get device fingerprint for security
-    const deviceFingerprint = req.get('x-device-fingerprint') ||
-                             req.get('x-device-id') ||
-                             req.ip ||
-                             'unknown';
-
     // Always return success to prevent email enumeration attacks
     // This prevents attackers from discovering which emails are registered
     const genericResponse = {
-      message: 'If an account exists with this email, a password reset code has been sent.'
+      message: 'If an account exists with this email, a password reset link has been sent.'
     };
 
     // Find user by email
@@ -311,31 +304,41 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
     const user = userResult.rows[0];
 
-    // Invalidate any existing active reset tokens for this user
+    // Invalidate any existing active reset tokens for this user (new_request reason)
     await pool.query(
-      'UPDATE password_reset_tokens SET used = true, used_at = NOW() WHERE user_id = $1 AND used = false',
+      `UPDATE password_reset_tokens
+       SET invalidated = true,
+           invalidated_at = NOW(),
+           invalidation_reason = 'new_request'
+       WHERE user_id = $1
+         AND used = false
+         AND invalidated = false
+         AND expires_at > NOW()`,
       [user.id]
     );
 
-    // Generate 6-digit reset code
-    const resetCode = generateResetCode();
-    const codeHash = hashResetCode(resetCode);
+    // Generate cryptographically secure unique reset token
+    const resetToken = generateResetToken();
+    const tokenHash = hashResetToken(resetToken);
 
-    // Store hashed code in database with 10-minute expiration
+    // Store hashed token in database with 10-minute expiration
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
     await pool.query(
-      `INSERT INTO password_reset_tokens (user_id, code_hash, device_fingerprint, expires_at)
-       VALUES ($1, $2, $3, $4)`,
-      [user.id, codeHash, deviceFingerprint, expiresAt]
+      `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+       VALUES ($1, $2, $3)`,
+      [user.id, tokenHash, expiresAt]
     );
 
-    // Send email with reset code
+    // Construct reset URL
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+    // Send email with reset link
     console.log(`📨 Sending password reset email to ${email}`);
-    console.log(`🔑 Reset code: ${resetCode}`);
+    console.log(`🔗 Reset URL: ${resetUrl}`);
     console.log(`⏰ Expires at: ${expiresAt}`);
 
-    const { sendPasswordResetEmail } = await import('../services/emailService.js');
-    await sendPasswordResetEmail(email, resetCode);
+    await sendPasswordResetEmail(email, resetUrl);
 
     console.log(`✅ Email sent successfully to ${email}`);
 
@@ -347,91 +350,55 @@ export const forgotPassword = async (req: Request, res: Response) => {
   }
 };
 
-export const verifyResetCode = async (req: Request, res: Response) => {
-  const { email, code } = req.body;
+// Validate reset token (called when user clicks the reset link)
+export const validateResetToken = async (req: Request, res: Response) => {
+  const { token } = req.body;
 
   try {
     // Validate input
-    if (!email || !code || typeof code !== 'string' || code.length !== 6) {
-      return res.status(400).json({ error: 'Invalid verification code' });
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ error: 'Reset token is required' });
     }
 
-    // Get device fingerprint
-    const deviceFingerprint = req.get('x-device-fingerprint') ||
-                             req.get('x-device-id') ||
-                             req.ip ||
-                             'unknown';
+    // Hash the provided token
+    const tokenHash = hashResetToken(token);
 
-    // Find user
-    const userResult = await pool.query<User>(
-      'SELECT id, email FROM users WHERE email = $1',
-      [email.toLowerCase().trim()]
-    );
-
-    if (userResult.rows.length === 0) {
-      return res.status(401).json({ error: 'Invalid or expired verification code' });
-    }
-
-    const user = userResult.rows[0];
-    const codeHash = hashResetCode(code);
-
-    // Find valid reset token
+    // Find valid reset token in database
     const tokenResult = await pool.query(
-      `SELECT id, code_hash, device_fingerprint, expires_at, used
-       FROM password_reset_tokens
-       WHERE user_id = $1
-       AND used = false
-       AND expires_at > NOW()
-       ORDER BY created_at DESC
+      `SELECT prt.id, prt.user_id, prt.expires_at, prt.used, prt.invalidated, u.email
+       FROM password_reset_tokens prt
+       JOIN users u ON u.id = prt.user_id
+       WHERE prt.token_hash = $1
+       AND prt.used = false
+       AND prt.invalidated = false
+       AND prt.expires_at > NOW()
        LIMIT 1`,
-      [user.id]
+      [tokenHash]
     );
 
     if (tokenResult.rows.length === 0) {
-      return res.status(401).json({ error: 'Invalid or expired verification code' });
+      return res.status(401).json({ error: 'Invalid or expired reset link. Please request a new one.' });
     }
 
-    const token = tokenResult.rows[0];
-
-    // Verify the code hash matches (timing-safe comparison)
-    if (!timingSafeCompare(token.code_hash, codeHash)) {
-      return res.status(401).json({ error: 'Invalid or expired verification code' });
-    }
-
-    // Verify device fingerprint matches (prevents code theft)
-    if (token.device_fingerprint !== deviceFingerprint) {
-      console.warn(`Device fingerprint mismatch for user ${user.id}. Original: ${token.device_fingerprint}, Current: ${deviceFingerprint}`);
-      return res.status(401).json({ error: 'Verification code must be used from the same device' });
-    }
-
-    // Generate a temporary session token for password reset (valid for 5 minutes)
-    const resetToken = jwt.sign(
-      {
-        userId: user.id,
-        email: user.email,
-        purpose: 'password_reset',
-        tokenId: token.id
-      },
-      process.env.JWT_SECRET!,
-      { expiresIn: '5m' }
-    );
+    const resetToken = tokenResult.rows[0];
 
     res.json({
-      message: 'Verification successful',
-      resetToken
+      message: 'Reset link is valid',
+      email: resetToken.email,
+      expiresAt: resetToken.expires_at
     });
   } catch (error) {
-    console.error('Verify reset code error:', error);
-    res.status(500).json({ error: 'Unable to verify code. Please try again.' });
+    console.error('Validate reset token error:', error);
+    res.status(500).json({ error: 'Unable to validate reset link. Please try again.' });
   }
 };
 
 export const resetPassword = async (req: Request, res: Response) => {
-  const { resetToken, newPassword } = req.body;
+  const { token, newPassword } = req.body;
 
   try {
     // Validate input
-    if (!resetToken || !newPassword) {
+    if (!token || !newPassword) {
       return res.status(400).json({ error: 'Reset token and new password are required' });
     }
 
@@ -439,30 +406,27 @@ export const resetPassword = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    // Verify reset token
-    let decoded: any;
-    try {
-      decoded = jwt.verify(resetToken, process.env.JWT_SECRET!);
-    } catch (error) {
-      return res.status(401).json({ error: 'Invalid or expired reset token' });
-    }
+    // Hash the provided token
+    const tokenHash = hashResetToken(token);
 
-    // Verify token purpose
-    if (decoded.purpose !== 'password_reset') {
-      return res.status(401).json({ error: 'Invalid reset token' });
-    }
-
-    const { userId, tokenId } = decoded;
-
-    // Verify the reset token hasn't been used
+    // Find valid reset token in database
     const tokenResult = await pool.query(
-      'SELECT used FROM password_reset_tokens WHERE id = $1 AND user_id = $2',
-      [tokenId, userId]
+      `SELECT id, user_id, expires_at, used, invalidated
+       FROM password_reset_tokens
+       WHERE token_hash = $1
+       AND used = false
+       AND invalidated = false
+       AND expires_at > NOW()
+       LIMIT 1`,
+      [tokenHash]
     );
 
-    if (tokenResult.rows.length === 0 || tokenResult.rows[0].used) {
-      return res.status(401).json({ error: 'Reset token has already been used' });
+    if (tokenResult.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid or expired reset link. Please request a new one.' });
     }
+
+    const resetToken = tokenResult.rows[0];
+    const userId = resetToken.user_id;
 
     // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -475,14 +439,23 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     // Mark reset token as used
     await pool.query(
-      'UPDATE password_reset_tokens SET used = true, used_at = NOW() WHERE id = $1',
-      [tokenId]
+      `UPDATE password_reset_tokens
+       SET used = true,
+           used_at = NOW()
+       WHERE id = $1`,
+      [resetToken.id]
     );
 
-    // Invalidate all other reset tokens for this user
+    // Invalidate all other reset tokens for this user (password_reset reason)
     await pool.query(
-      'UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND id != $2',
-      [userId, tokenId]
+      `UPDATE password_reset_tokens
+       SET invalidated = true,
+           invalidated_at = NOW(),
+           invalidation_reason = 'password_reset'
+       WHERE user_id = $1
+       AND id != $2
+       AND invalidated = false`,
+      [userId, resetToken.id]
     );
 
     res.json({ message: 'Password reset successful. You can now login with your new password.' });

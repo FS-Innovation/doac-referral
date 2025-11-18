@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const AuthModal = ({ mode: initialMode, onClose }) => {
-  const [mode, setMode] = useState(initialMode); // 'login', 'register'
+  const [mode, setMode] = useState(initialMode); // 'login', 'register', 'forgot-password'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -14,7 +14,10 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
 
-  const { login, register } = useAuth();
+  // Password reset states
+  const [successMessage, setSuccessMessage] = useState('');
+
+  const { login, register, forgotPassword } = useAuth();
   const navigate = useNavigate();
 
   // Client-side validation and sanitization
@@ -129,13 +132,118 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
   const switchMode = (newMode) => {
     setMode(newMode);
     setError('');
+    setSuccessMessage('');
     setPassword('');
     setConfirmPassword('');
     setPasswordTouched(false);
   };
 
+  // Handle forgot password request
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+
+    const sanitizedEmail = sanitizeInput(email).toLowerCase();
+
+    if (!isEmailValid(sanitizedEmail)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    setError('');
+    setSuccessMessage('');
+    setLoading(true);
+
+    try {
+      await forgotPassword(sanitizedEmail);
+      // Always show generic success message (security best practice)
+      setSuccessMessage('If an account exists with this email, a password reset link has been sent. Please check your inbox.');
+    } catch (err) {
+      // Always show generic message to prevent email enumeration
+      setSuccessMessage('If an account exists with this email, a password reset link has been sent. Please check your inbox.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Render different forms based on mode
   const renderForm = () => {
+    // Forgot password form - Step 1: Enter email
+    if (mode === 'forgot-password') {
+      return (
+        <form onSubmit={handleForgotPassword} className="modal-form" noValidate>
+          <div className="form-group">
+            <label htmlFor="email" className="form-label">
+              Email address
+            </label>
+            <div className="input-wrapper">
+              <input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="modal-input"
+                autoComplete="email"
+                disabled={loading}
+                autoFocus
+              />
+            </div>
+            <p style={{ fontSize: '14px', color: '#666', marginTop: '8px' }}>
+              Enter your email address and we'll send you a code to reset your password.
+            </p>
+          </div>
+
+          {error && (
+            <div className="modal-error" role="alert">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              {error}
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="modal-success" role="alert">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              {successMessage}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="modal-submit"
+            disabled={!email || !isEmailValid(email) || loading}
+          >
+            {loading ? (
+              <>
+                <span className="spinner"></span>
+                Sending code...
+              </>
+            ) : (
+              'Send reset code'
+            )}
+          </button>
+
+          <div className="modal-footer">
+            <button
+              type="button"
+              className="link-button"
+              onClick={() => switchMode('login')}
+              style={{ color: '#ffffff', cursor: 'pointer', background: 'none', border: 'none', padding: 0, font: 'inherit', textDecoration: 'underline' }}
+            >
+              ← Back to login
+            </button>
+          </div>
+        </form>
+      );
+    }
+
     // Default: login/register form
     return (
       <form onSubmit={handleSubmit} className="modal-form" noValidate>
@@ -201,6 +309,25 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
               </button>
             </div>
             {passwordError && <span className="error-text">{passwordError}</span>}
+            {mode === 'login' && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => switchMode('forgot-password')}
+                  style={{
+                    color: '#ffffff',
+                    cursor: 'pointer',
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    fontSize: '14px',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
             {mode === 'register' && password && password.length >= 1 && (() => {
               // Calculate password strength (0-4)
               let strength = 0;
@@ -278,10 +405,10 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
           {/* Error Message */}
           {error && (
             <div className="modal-error" role="alert">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
               </svg>
               {error}
             </div>
@@ -335,23 +462,28 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
         </button>
 
         <div className="modal-header">
-          <h2>Start Earning Points</h2>
-          <div className="modal-tabs">
-            <button
-              className={`tab ${mode === 'login' ? 'active' : ''}`}
-              onClick={() => switchMode('login')}
-              type="button"
-            >
-              Log in to your account
-            </button>
-            <button
-              className={`tab ${mode === 'register' ? 'active' : ''}`}
-              onClick={() => switchMode('register')}
-              type="button"
-            >
-              Create a free account
-            </button>
-          </div>
+          <h2>
+            {mode === 'forgot-password' && 'Reset Your Password'}
+            {(mode === 'login' || mode === 'register') && 'Start Earning Points'}
+          </h2>
+          {(mode === 'login' || mode === 'register') && (
+            <div className="modal-tabs">
+              <button
+                className={`tab ${mode === 'login' ? 'active' : ''}`}
+                onClick={() => switchMode('login')}
+                type="button"
+              >
+                Log in to your account
+              </button>
+              <button
+                className={`tab ${mode === 'register' ? 'active' : ''}`}
+                onClick={() => switchMode('register')}
+                type="button"
+              >
+                Create a free account
+              </button>
+            </div>
+          )}
         </div>
 
         {renderForm()}

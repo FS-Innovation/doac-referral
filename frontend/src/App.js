@@ -10,6 +10,7 @@ import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import ReferralRedirect from './pages/ReferralRedirect';
 import ReferralLanding from './pages/ReferralLanding';
+import ResetPassword from './pages/ResetPassword';
 import CookiePolicy from './pages/CookiePolicy';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsConditions from './pages/TermsConditions';
@@ -83,6 +84,9 @@ function AppContent() {
 
         {/* Referral landing page - public (where user chooses platform) */}
         <Route path="/listen/:code" element={<ReferralLanding />} />
+
+        {/* Password reset - public */}
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Policy pages - public */}
         <Route path="/cookie-policy" element={<CookiePolicy />} />

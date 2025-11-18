@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register, login, getProfile, logout, forgotPassword, verifyResetCode, resetPassword } from '../controllers/authController';
+import { register, login, getProfile, logout, forgotPassword, validateResetToken, resetPassword } from '../controllers/authController';
 import { authenticateToken } from '../middleware/auth';
 import {
   loginLimiter,
@@ -20,7 +20,7 @@ router.get('/profile', authenticateToken, getProfile);
 
 // Password reset endpoints with strict rate limiting
 router.post('/forgot-password', forgotPasswordLimiter, forgotPassword);
-router.post('/verify-reset-code', verifyResetCodeLimiter, verifyResetCode);
+router.post('/validate-reset-token', verifyResetCodeLimiter, validateResetToken);
 router.post('/reset-password', resetPasswordLimiter, resetPassword);
 
 export default router;

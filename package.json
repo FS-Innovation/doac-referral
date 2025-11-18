@@ -11,10 +11,18 @@
     "build": "cd frontend && npm install && npm run build",
     "vercel-build": "cd backend && npm install && cd ../frontend && npm install && npm run build"
   },
-  "keywords": ["referral", "points", "marketplace"],
+  "keywords": [
+    "referral",
+    "points",
+    "marketplace"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
+    "dotenv": "^17.2.3"
   }
 }
