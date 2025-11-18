@@ -148,61 +148,106 @@ export const detectReferralFraud = async (
   const browserFingerprint = req.get('x-browser-fingerprint') || '';
 
   const fraudReasons: string[] = [];
+  const duplicateMatches: string[] = [];
 
   try {
-    // Check 1: Device ID Detection (PRIMARY - Most persistent)
-    // Device ID is UUID stored in localStorage - persists across sessions
-    // One click per device ID per referral code per 24 hours
+    // Check 1: Device ID Detection (PRIMARY - Strongest signal)
+    // Device ID is UUID stored in localStorage - if it matches, definitely same browser session
+    // This is a HIGH CONFIDENCE signal by itself
+    let deviceIdMatched = false;
     if (deviceId && deviceId.length > 10) {
       const deviceKey = `fraud:${code}:deviceid:${deviceId}`;
       const deviceClicked = await redisClient.get(deviceKey);
 
       if (deviceClicked) {
-        console.warn(`🚨 DUPLICATE CLICK: Same device ID clicked again within 24h for code: ${code}`);
-        console.warn(`   Device ID: ${deviceId.substring(0, 16)}...`);
-        console.warn(`   Current IP: ${ipAddress}, Previous IP: ${deviceClicked}`);
+        deviceIdMatched = true;
+        duplicateMatches.push('Device ID');
         fraudReasons.push('duplicate_device_id_24h');
-        req.body.skipPointsAward = true;
+        console.log(`⚠️  Match #1: Device ID matched for code ${code}`);
+        console.log(`   Device ID: ${deviceId.substring(0, 16)}...`);
+        console.log(`   Current IP: ${ipAddress}, Previous IP: ${deviceClicked}`);
       } else {
         await redisClient.setex(deviceKey, 86400, ipAddress);
       }
     }
 
     // Check 2: Device Fingerprint Detection (SECONDARY - Hardware based)
-    // Hardware fingerprint (GPU, CPU, screen) - changes only with hardware
-    // Catches users who clear localStorage but use same device
-    // One click per device fingerprint per referral code per 24 hours
+    // Hardware fingerprint (GPU, CPU, screen) - very persistent
+    // Only changes with actual hardware upgrades
+    let deviceFpMatched = false;
     if (deviceFingerprint && deviceFingerprint.length > 10) {
       const deviceFpKey = `fraud:${code}:devicefp:${deviceFingerprint}`;
       const deviceFpClicked = await redisClient.get(deviceFpKey);
 
       if (deviceFpClicked) {
-        console.warn(`🚨 DUPLICATE CLICK: Same device hardware fingerprint within 24h for code: ${code}`);
-        console.warn(`   Device Fingerprint: ${deviceFingerprint.substring(0, 16)}...`);
-        console.warn(`   Current IP: ${ipAddress}, Previous IP: ${deviceFpClicked}`);
+        deviceFpMatched = true;
+        duplicateMatches.push('Device Fingerprint');
         fraudReasons.push('duplicate_device_fp_24h');
-        req.body.skipPointsAward = true;
+        console.log(`⚠️  Match #${duplicateMatches.length}: Device Fingerprint matched for code ${code}`);
+        console.log(`   Device Fingerprint: ${deviceFingerprint.substring(0, 16)}...`);
+        console.log(`   Current IP: ${ipAddress}, Previous IP: ${deviceFpClicked}`);
       } else {
         await redisClient.setex(deviceFpKey, 86400, ipAddress);
       }
     }
 
     // Check 3: Browser Fingerprint Detection (TERTIARY - Software based)
-    // One click per browser fingerprint per referral code per 24 hours
+    // Changes with browser updates, extensions, OS updates
+    // Less persistent than device fingerprint
+    let browserFpMatched = false;
     if (browserFingerprint && browserFingerprint.length > 10) {
       const fpKey = `fraud:${code}:fp:${browserFingerprint}`;
       const fpAlreadyClicked = await redisClient.get(fpKey);
 
       if (fpAlreadyClicked) {
-        console.warn(`🚨 DUPLICATE CLICK: Same browser fingerprint clicked again within 24h for code: ${code}`);
-        console.warn(`   Fingerprint: ${browserFingerprint.substring(0, 16)}...`);
-        console.warn(`   Current IP: ${ipAddress}, Previous IP: ${fpAlreadyClicked}`);
+        browserFpMatched = true;
+        duplicateMatches.push('Browser Fingerprint');
         fraudReasons.push('duplicate_browser_fp_24h');
-        req.body.skipPointsAward = true;
+        console.log(`⚠️  Match #${duplicateMatches.length}: Browser Fingerprint matched for code ${code}`);
+        console.log(`   Fingerprint: ${browserFingerprint.substring(0, 16)}...`);
+        console.log(`   Current IP: ${ipAddress}, Previous IP: ${fpAlreadyClicked}`);
       } else {
-        // Store fingerprint with current IP for 24 hours
         await redisClient.setex(fpKey, 86400, ipAddress);
       }
+    }
+
+    // SMART DUPLICATE DETECTION LOGIC
+    // Same logic as self-click detection scoring system
+    //
+    // HIGH CONFIDENCE scenarios (Block):
+    //   1. Device ID matched → 100% same browser session → BLOCK
+    //   2. Device FP + Browser FP both matched → 95% same device (cleared localStorage) → BLOCK
+    //
+    // LOW CONFIDENCE scenarios (Allow):
+    //   3. Only Device FP or only Browser FP → Could be legitimate update → ALLOW
+    //   4. No matches → New device → ALLOW
+
+    if (deviceIdMatched) {
+      // Device ID match = definitive proof of duplicate click
+      console.error(`🚨 DUPLICATE CLICK BLOCKED: Device ID match (100% confidence)`);
+      console.error(`   Code: ${code}`);
+      console.error(`   Reason: Same localStorage UUID = same browser session`);
+      console.error(`   → Points will NOT be awarded`);
+      req.body.skipPointsAward = true;
+    } else if (deviceFpMatched && browserFpMatched) {
+      // Both hardware and software fingerprints match = very high confidence duplicate
+      console.error(`🚨 DUPLICATE CLICK BLOCKED: Device FP + Browser FP match (95% confidence)`);
+      console.error(`   Code: ${code}`);
+      console.error(`   Reason: Both fingerprints match = same device (cleared localStorage)`);
+      console.error(`   → Points will NOT be awarded`);
+      req.body.skipPointsAward = true;
+    } else if (deviceFpMatched || browserFpMatched) {
+      // Only one fingerprint matched - likely legitimate hardware/software change
+      console.log(`✅ ALLOWED: Only 1 fingerprint match for code ${code}`);
+      console.log(`   Matched: ${duplicateMatches.join(', ')}`);
+      console.log(`   Reason: Single match = likely legitimate hardware/software change`);
+      console.log(`   → Points WILL be awarded`);
+      // Clear fraud reasons since we're allowing it
+      fraudReasons.length = 0;
+    } else {
+      // No matches - completely new device
+      console.log(`✅ ALLOWED: No duplicate matches for code ${code}`);
+      console.log(`   → Points WILL be awarded`);
     }
 
     // ============================================================================
