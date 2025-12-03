@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import pool from '../config/database';
 import { AuthRequest } from '../types';
+import { updateAllPlatformLinks } from '../services/latestEpisodeService';
 
 // Product Management
 export const createProduct = async (req: AuthRequest, res: Response) => {
@@ -219,7 +220,7 @@ export const getUserDetails = async (req: AuthRequest, res: Response) => {
 
 // Settings Management
 export const updateRedirectUrl = async (req: AuthRequest, res: Response) => {
-  const { url } = req.body;
+  const { url, platform } = req.body;
 
   try {
     if (!url) {
@@ -233,16 +234,25 @@ export const updateRedirectUrl = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Invalid URL format' });
     }
 
+    // Determine which setting key to update based on platform
+    let settingKey = 'redirect_url'; // Default to YouTube
+    if (platform === 'spotify') {
+      settingKey = 'redirect_url_spotify';
+    } else if (platform === 'apple') {
+      settingKey = 'redirect_url_apple';
+    }
+
     await pool.query(
       `INSERT INTO settings (key, value, updated_at)
-       VALUES ('redirect_url', $1, CURRENT_TIMESTAMP)
+       VALUES ($1, $2, CURRENT_TIMESTAMP)
        ON CONFLICT (key)
-       DO UPDATE SET value = $1, updated_at = CURRENT_TIMESTAMP`,
-      [url]
+       DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP`,
+      [settingKey, url]
     );
 
     res.json({
-      message: 'Redirect URL updated successfully',
+      message: `${platform || 'YouTube'} redirect URL updated successfully`,
+      platform: platform || 'youtube',
       redirectUrl: url
     });
   } catch (error) {
@@ -317,5 +327,113 @@ export const getAnalytics = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Get analytics error:', error);
     res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+};
+
+// Episode Updates
+export const updateLatestEpisodes = async (req: AuthRequest, res: Response) => {
+  try {
+    console.log('🔄 Manual episode update triggered by admin');
+
+    const results = await updateAllPlatformLinks();
+
+    // Build response
+    const response: any = {
+      message: 'Episode update completed',
+      timestamp: new Date().toISOString(),
+      results: {}
+    };
+
+    if (results.youtube) {
+      response.results.youtube = {
+        success: true,
+        title: results.youtube.title,
+        url: results.youtube.url,
+        thumbnail: results.youtube.thumbnail
+      };
+    }
+
+    if (results.spotify) {
+      response.results.spotify = {
+        success: true,
+        title: results.spotify.title,
+        url: results.spotify.url,
+        thumbnail: results.spotify.thumbnail
+      };
+    }
+
+    if (results.apple) {
+      response.results.apple = {
+        success: true,
+        title: results.apple.title,
+        url: results.apple.url,
+        thumbnail: results.apple.thumbnail
+      };
+    }
+
+    if (results.errors.length > 0) {
+      response.errors = results.errors;
+      response.message = 'Episode update completed with some errors';
+    }
+
+    const allFailed = !results.youtube && !results.spotify && !results.apple;
+    if (allFailed) {
+      return res.status(500).json({
+        error: 'All platform updates failed',
+        errors: results.errors
+      });
+    }
+
+    res.json(response);
+  } catch (error) {
+    console.error('Update latest episodes error:', error);
+    res.status(500).json({
+      error: 'Failed to update episodes',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+export const getCurrentEpisodeLinks = async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT key, value, updated_at
+       FROM settings
+       WHERE key IN ('redirect_url', 'redirect_url_spotify', 'redirect_url_apple')
+       ORDER BY key`
+    );
+
+    const links: any = {
+      youtube: null,
+      spotify: null,
+      apple: null
+    };
+
+    result.rows.forEach(row => {
+      if (row.key === 'redirect_url') {
+        links.youtube = {
+          url: row.value,
+          lastUpdated: row.updated_at
+        };
+      } else if (row.key === 'redirect_url_spotify') {
+        links.spotify = {
+          url: row.value,
+          lastUpdated: row.updated_at
+        };
+      } else if (row.key === 'redirect_url_apple') {
+        links.apple = {
+          url: row.value,
+          lastUpdated: row.updated_at
+        };
+      }
+    });
+
+    res.json({
+      message: 'Current episode links',
+      links
+    });
+  } catch (error) {
+    console.error('Get current episode links error:', error);
+    res.status(500).json({ error: 'Failed to fetch current episode links' });
   }
 };

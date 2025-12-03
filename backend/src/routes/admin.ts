@@ -8,7 +8,9 @@ import {
   getUserDetails,
   updateRedirectUrl,
   getSettings,
-  getAnalytics
+  getAnalytics,
+  updateLatestEpisodes,
+  getCurrentEpisodeLinks
 } from '../controllers/adminController';
 import { authenticateToken, requireAdmin } from '../middleware/auth';
 
@@ -34,5 +36,9 @@ router.put('/settings/redirect-url', updateRedirectUrl);
 
 // Analytics
 router.get('/analytics', getAnalytics);
+
+// Episode Updates
+router.post('/episodes/update', updateLatestEpisodes);
+router.get('/episodes/current', getCurrentEpisodeLinks);
 
 export default router;

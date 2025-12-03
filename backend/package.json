@@ -12,6 +12,8 @@
     "cache-metadata:safe": "ts-node src/scripts/safe-cache-metadata.ts",
     "clear-rate-limits": "ts-node src/scripts/clear-rate-limits.ts",
     "flush-redis": "ts-node src/scripts/flush-redis.ts",
+    "test-episode-update": "ts-node src/scripts/test-episode-update.ts",
+    "check-metadata": "ts-node src/scripts/check-current-metadata.ts",
     "railway:build": "npm run build",
     "railway:start": "npm start"
   },

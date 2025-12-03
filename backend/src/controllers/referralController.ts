@@ -237,9 +237,9 @@ export const getSettings = async (_req: Request, res: Response) => {
       settings[row.key] = row.value;
     });
 
-    const youtubeUrl = settings['redirect_url'] || 'https://youtu.be/qxxnRMT9C-8';
-    const spotifyUrl = settings['redirect_url_spotify'] || 'https://open.spotify.com/episode/6L11cxCLi0V6mhlpdzLokR';
-    const appleUrl = settings['redirect_url_apple'] || '';
+    const youtubeUrl = settings['redirect_url'] || null;
+    const spotifyUrl = settings['redirect_url_spotify'] || null;
+    const appleUrl = settings['redirect_url_apple'] || null;
 
     // Get cached metadata from database
     const metadataResult = await pool.query(
