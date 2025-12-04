@@ -135,7 +135,7 @@ const ReferralLanding = () => {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #000000 0%, #1a1a1a 100%)',
+      background: '#000000',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
     }}>
       {/* Header */}
@@ -175,68 +175,15 @@ const ReferralLanding = () => {
       {/* Content */}
       <div style={{
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'center',
-        padding: isMobile ? '16px' : '24px',
+        padding: isMobile ? '16px 16px' : '24px 24px',
         minHeight: 'calc(100vh - 80px)'
       }}>
         <div style={{
           maxWidth: '480px',
           width: '100%'
         }}>
-        {/* Video Thumbnail Card */}
-        {settings?.youtube && (
-          <div style={{
-            padding: '1px',
-            borderRadius: '16px',
-            background: 'linear-gradient(239.85deg, #FFFFFF 3.78%, #5A2F30 100%)',
-            marginBottom: '24px',
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
-          }}>
-            <div style={{
-              background: '#0d0d0d',
-              borderRadius: '15px',
-              overflow: 'hidden'
-            }}>
-              <img
-                src={settings.youtube.thumbnail}
-                alt={settings.youtube.title}
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  display: 'block',
-                  aspectRatio: '16/9',
-                  objectFit: 'cover'
-                }}
-              />
-              <div style={{
-                padding: isMobile ? '20px' : '24px'
-              }}>
-                <h1 style={{
-                  fontSize: isMobile ? '1.125rem' : '1.25rem',
-                  fontWeight: '600',
-                  marginBottom: '8px',
-                  color: '#FFF',
-                  lineHeight: '1.4',
-                  display: '-webkit-box',
-                  WebkitLineClamp: '2',
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden'
-                }}>
-                  {settings.youtube.title}
-                </h1>
-                <p style={{
-                  fontSize: '0.9375rem',
-                  color: '#888',
-                  fontWeight: '500'
-                }}>
-                  {settings.youtube.channel}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Platform Selection */}
         <div style={{
           textAlign: 'center',
@@ -407,6 +354,59 @@ const ReferralLanding = () => {
           }}>
             Taking you there...
           </p>
+        )}
+
+        {/* Video Thumbnail Card */}
+        {settings?.youtube && (
+          <div style={{
+            padding: '1px',
+            borderRadius: '16px',
+            background: 'linear-gradient(239.85deg, #FFFFFF 3.78%, #5A2F30 100%)',
+            marginTop: '24px',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
+          }}>
+            <div style={{
+              background: '#0d0d0d',
+              borderRadius: '15px',
+              overflow: 'hidden'
+            }}>
+              <img
+                src={settings.youtube.thumbnail}
+                alt={settings.youtube.title}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  display: 'block',
+                  aspectRatio: '16/9',
+                  objectFit: 'cover'
+                }}
+              />
+              <div style={{
+                padding: isMobile ? '20px' : '24px'
+              }}>
+                <h1 style={{
+                  fontSize: isMobile ? '1.125rem' : '1.25rem',
+                  fontWeight: '600',
+                  marginBottom: '8px',
+                  color: '#FFF',
+                  lineHeight: '1.4',
+                  display: '-webkit-box',
+                  WebkitLineClamp: '2',
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden'
+                }}>
+                  {settings.youtube.title}
+                </h1>
+                <p style={{
+                  fontSize: '0.9375rem',
+                  color: '#888',
+                  fontWeight: '500'
+                }}>
+                  {settings.youtube.channel}
+                </p>
+              </div>
+            </div>
+          </div>
         )}
         </div>
       </div>
