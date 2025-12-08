@@ -309,9 +309,30 @@ const getAppDeepLink = (platform: string, webUrl: string): string => {
   return webUrl;
 };
 
+// Helper to get fallback URL from settings table (legacy support)
+const getFallbackUrl = async (platform: string): Promise<string> => {
+  const settingsResult = await pool.query(
+    `SELECT key, value FROM settings WHERE key IN ('redirect_url', 'redirect_url_spotify', 'redirect_url_apple')`
+  );
+
+  const settings: Record<string, string> = {};
+  settingsResult.rows.forEach(row => {
+    settings[row.key] = row.value;
+  });
+
+  if (platform === 'spotify' && settings['redirect_url_spotify']) {
+    return settings['redirect_url_spotify'];
+  } else if (platform === 'apple' && settings['redirect_url_apple']) {
+    return settings['redirect_url_apple'];
+  }
+  return settings['redirect_url'] || 'https://youtu.be/qxxnRMT9C-8';
+};
+
 // Award points when user clicks platform button (with fraud prevention)
 export const awardPoints = async (req: Request, res: Response) => {
-  const { code, platform } = req.body;
+  const { code, platform, episodeId } = req.body;
+
+  console.log(`🔍 Award points request: code=${code}, platform=${platform}, episodeId=${episodeId}`);
 
   if (!code || !platform || !['youtube', 'spotify', 'apple'].includes(platform)) {
     return res.status(400).json({ error: 'Invalid request parameters' });
@@ -343,23 +364,40 @@ export const awardPoints = async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Session validation failed' });
     }
 
-    // Get redirect URL based on platform choice
-    const settingsResult = await pool.query(
-      `SELECT key, value FROM settings WHERE key IN ('redirect_url', 'redirect_url_spotify', 'redirect_url_apple')`
-    );
-
-    const settings: Record<string, string> = {};
-    settingsResult.rows.forEach(row => {
-      settings[row.key] = row.value;
-    });
-
     let webUrl: string;
-    if (platform === 'spotify' && settings['redirect_url_spotify']) {
-      webUrl = settings['redirect_url_spotify'];
-    } else if (platform === 'apple' && settings['redirect_url_apple']) {
-      webUrl = settings['redirect_url_apple'];
+
+    // If episodeId provided, get URLs from episodes table
+    if (episodeId) {
+      const episodeResult = await pool.query(
+        `SELECT youtube_url, spotify_url, apple_url FROM episodes WHERE id = $1 AND is_active = true`,
+        [episodeId]
+      );
+
+      console.log(`🔍 Episode query for id=${episodeId}: found ${episodeResult.rows.length} rows`);
+
+      if (episodeResult.rows.length > 0) {
+        const episode = episodeResult.rows[0];
+        console.log(`🔍 Episode URLs: youtube=${episode.youtube_url}, spotify=${episode.spotify_url}, apple=${episode.apple_url}`);
+
+        if (platform === 'spotify' && episode.spotify_url) {
+          webUrl = episode.spotify_url;
+          console.log(`✅ Using Spotify URL: ${webUrl}`);
+        } else if (platform === 'apple' && episode.apple_url) {
+          webUrl = episode.apple_url;
+          console.log(`✅ Using Apple URL: ${webUrl}`);
+        } else {
+          webUrl = episode.youtube_url;
+          console.log(`⚠️ Falling back to YouTube URL: ${webUrl} (platform=${platform}, spotify_url=${episode.spotify_url}, apple_url=${episode.apple_url})`);
+        }
+      } else {
+        // Episode not found, fall back to settings
+        console.warn(`Episode ${episodeId} not found, falling back to settings`);
+        webUrl = await getFallbackUrl(platform);
+      }
     } else {
-      webUrl = settings['redirect_url'] || 'https://youtu.be/qxxnRMT9C-8';
+      // No episodeId, use legacy settings table
+      console.log(`⚠️ No episodeId provided, using legacy settings`);
+      webUrl = await getFallbackUrl(platform);
     }
 
     // Convert to app deep link (opens native app if installed, otherwise web)

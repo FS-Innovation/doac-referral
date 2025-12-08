@@ -18,14 +18,15 @@ import TermsConditions from './pages/TermsConditions';
 // Authenticated route wrapper - redirects to dashboard if logged in
 function AuthenticatedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return <LoadingSpinner />;
   }
 
-  // If authenticated, always go to dashboard
+  // If authenticated, always go to dashboard (preserve query params like ?e=videoId)
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={`/dashboard${location.search}`} replace />;
   }
 
   return children;

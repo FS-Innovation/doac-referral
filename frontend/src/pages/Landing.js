@@ -1,10 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import AuthModal from '../components/AuthModal';
 import Header from '../components/Header';
+import { setReferralSourceEpisode } from '../utils/episode';
 
 const Landing = () => {
+  const [searchParams] = useSearchParams();
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState('login'); // 'login' or 'register'
+
+  // Capture episode ID from URL for direct signups (e.g., doac-perks.com?e=4QLWlcneJig)
+  // This is used when users visit from video descriptions
+  useEffect(() => {
+    const episodeVideoId = searchParams.get('e');
+    if (episodeVideoId) {
+      setReferralSourceEpisode(episodeVideoId);
+    }
+  }, [searchParams]);
 
   const handleOpenModal = (mode) => {
     setModalMode(mode);

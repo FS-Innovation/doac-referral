@@ -1,9 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { userAPI } from '../services/api';
+import { userAPI, episodesAPI } from '../services/api';
+import {
+  buildReferralUrl,
+  getYouTubeThumbnail,
+  formatRelativeTime,
+  truncateText,
+  consumeReferralSourceEpisode
+} from '../utils/episode';
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -12,6 +21,16 @@ const Dashboard = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [touchStart, setTouchStart] = useState(0);
   const [touchEnd, setTouchEnd] = useState(0);
+  // Selected episode YouTube video ID from backend (null = "LATEST" mode)
+  const [selectedVideoId, setSelectedVideoId] = useState(null);
+  const [backendLoaded, setBackendLoaded] = useState(false);
+
+  // Episode selector state
+  const [showEpisodeSelector, setShowEpisodeSelector] = useState(false);
+  const [episodes, setEpisodes] = useState([]);
+  const [episodesLoading, setEpisodesLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [thumbnailHovered, setThumbnailHovered] = useState(false);
 
   useEffect(() => {
     const handleResize = () => {
@@ -49,12 +68,39 @@ const Dashboard = () => {
 
   useEffect(() => {
     loadStats();
+    loadEpisodes(); // Load episodes on mount to show current episode title
   }, []);
+
+  // Watch for ?e= param in URL and update episode immediately
+  useEffect(() => {
+    const urlEpisodeId = searchParams.get('e');
+    if (urlEpisodeId && episodes.length > 0) {
+      const urlEpisode = episodes.find(ep => ep.youtube_video_id === urlEpisodeId);
+      if (urlEpisode) {
+        // Only update if different from current selection
+        if (urlEpisode.youtube_video_id !== selectedVideoId) {
+          setSelectedVideoId(urlEpisode.youtube_video_id);
+          userAPI.updateSelectedEpisode(urlEpisode.youtube_video_id)
+            .then(() => console.log(`✅ Episode set from URL param: ${urlEpisode.youtube_video_id}`))
+            .catch(err => console.error('Failed to save episode preference:', err));
+        }
+        // Clear the ?e= param from URL so it doesn't keep overwriting manual selections
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('e');
+        setSearchParams(newParams, { replace: true });
+      }
+    }
+  }, [searchParams, episodes, selectedVideoId, setSearchParams]);
 
   const loadStats = async () => {
     try {
       const response = await userAPI.getReferralStats();
       setStats(response.data);
+      // Load user's stored episode preference from backend
+      if (response.data.selectedEpisodeId !== undefined) {
+        setSelectedVideoId(response.data.selectedEpisodeId);
+        setBackendLoaded(true);
+      }
     } catch (error) {
       console.error('Failed to load stats:', error);
     } finally {
@@ -62,11 +108,101 @@ const Dashboard = () => {
     }
   };
 
+  // Get the selected episode object - if selectedVideoId is null, use latest (first in list)
+  const latestEpisode = episodes[0] || null;
+  const selectedEpisode = selectedVideoId
+    ? episodes.find(ep => ep.youtube_video_id === selectedVideoId) || latestEpisode
+    : latestEpisode;
+
+  // Check if in "LATEST" mode (no specific episode selected)
+  const isLatestMode = selectedVideoId === null;
+
+  // Build referral URL with YouTube video ID (e.g., ?e=4QLWlcneJig)
+  // For LATEST mode, don't include episode param so they always get the newest
+  const referralUrlWithEpisode = stats?.referralCode
+    ? buildReferralUrl(stats.referralCode, isLatestMode ? null : selectedEpisode?.youtube_video_id)
+    : stats?.referralUrl;
+
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(stats.referralUrl);
+    navigator.clipboard.writeText(referralUrlWithEpisode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const loadEpisodes = async () => {
+    if (episodes.length > 0) return; // Already loaded
+    setEpisodesLoading(true);
+    try {
+      const response = await episodesAPI.getAll();
+      const episodeList = response.data.episodes || [];
+      setEpisodes(episodeList);
+
+      // URL ?e= param is handled by the useEffect watching searchParams
+      // This ensures it triggers properly after episodes are loaded
+
+      // Check for referral source episode (from sessionStorage - new users)
+      // This is consumed (read and cleared) so it only applies once
+      if (episodeList.length > 0 && !backendLoaded) {
+        const referralSourceVideoId = consumeReferralSourceEpisode();
+        const referralSourceEpisode = referralSourceVideoId
+          ? episodeList.find(ep => ep.youtube_video_id === referralSourceVideoId)
+          : null;
+
+        if (referralSourceEpisode) {
+          setSelectedVideoId(referralSourceEpisode.youtube_video_id);
+          try {
+            await userAPI.updateSelectedEpisode(referralSourceEpisode.youtube_video_id);
+          } catch (err) {
+            console.error('Failed to save episode preference:', err);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load episodes:', error);
+    } finally {
+      setEpisodesLoading(false);
+    }
+  };
+
+  const handleChangeEpisodeClick = () => {
+    if (showEpisodeSelector) {
+      setShowEpisodeSelector(false);
+      setSearchQuery('');
+    } else {
+      setShowEpisodeSelector(true);
+      loadEpisodes();
+    }
+  };
+
+  // Handle selecting "LATEST" option
+  const handleLatestSelect = async () => {
+    setSelectedVideoId(null);
+    setShowEpisodeSelector(false);
+    setSearchQuery('');
+    try {
+      await userAPI.updateSelectedEpisode(null);
+    } catch (err) {
+      console.error('Failed to save episode preference:', err);
+    }
+  };
+
+  // Handle selecting a specific episode
+  const handleEpisodeSelect = async (episode) => {
+    setSelectedVideoId(episode.youtube_video_id);
+    setShowEpisodeSelector(false);
+    setSearchQuery('');
+    try {
+      await userAPI.updateSelectedEpisode(episode.youtube_video_id);
+    } catch (err) {
+      console.error('Failed to save episode preference:', err);
+    }
+  };
+
+  // Filter episodes based on search query
+  const filteredEpisodes = episodes.filter(episode =>
+    episode.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    episode.episode_number.toString().includes(searchQuery)
+  );
 
   const prizes = [
     { id: 1, name: 'Prize 1', color: '#5C5C5C', image: 'https://storage.googleapis.com/doac-perks/Rectangle%20160.png' },
@@ -171,45 +307,223 @@ const Dashboard = () => {
         backgroundOrigin: 'border-box',
         backgroundClip: 'padding-box, border-box',
         borderRadius: isMobile ? '16px' : '10px',
-        padding: isMobile ? '20px 16px' : '24px',
+        padding: isMobile ? '20px 16px' : '0',
         marginBottom: isMobile ? '16px' : '20px',
-        margin: isMobile ? '0 16px 16px 16px' : '0 0 20px 0'
+        margin: isMobile ? '0 16px 16px 16px' : '0 0 20px 0',
+        display: isMobile ? 'block' : 'flex',
+        flexWrap: 'wrap',
+        overflow: showEpisodeSelector ? 'visible' : 'hidden',
+        height: (isMobile || showEpisodeSelector) ? 'auto' : '180px'
       }}>
-        <h2 style={{
-          color: '#FFF',
-          marginBottom: isMobile ? '12px' : '16px',
-          fontSize: isMobile ? '1.125rem' : '1.5rem'
-        }}>Your Referral Link</h2>
-        <p style={{
-          color: '#B5B5B5',
-          marginBottom: isMobile ? '16px' : '20px',
-          fontSize: isMobile ? '0.875rem' : '1rem',
-          lineHeight: '1.5'
-        }}>Share this link to earn points! Each unique click gives you 1 point.</p>
+        {/* Desktop: Thumbnail on Left - Clickable */}
+        {!isMobile && selectedEpisode && (
+          <div
+            onClick={handleChangeEpisodeClick}
+            onMouseEnter={() => setThumbnailHovered(true)}
+            onMouseLeave={() => setThumbnailHovered(false)}
+            style={{
+              flexShrink: 0,
+              width: '320px',
+              height: '180px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: '#000',
+              position: 'relative',
+              cursor: 'pointer',
+              borderRadius: '10px 0 0 10px',
+              overflow: 'hidden'
+            }}
+          >
+            <img
+              src={getYouTubeThumbnail(selectedEpisode.youtube_video_id, 'maxresdefault')}
+              alt={`Video Thumbnail: ${selectedEpisode.title}`}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
+            />
+            {/* Hover Overlay */}
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.6)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: thumbnailHovered ? 1 : 0,
+              transition: 'opacity 0.2s ease'
+            }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+              <span style={{
+                color: '#FFF',
+                fontSize: '14px',
+                fontWeight: '500',
+                marginTop: '8px'
+              }}>Change Episode</span>
+            </div>
+          </div>
+        )}
+
+        {/* Content Section */}
+        <div style={{
+          flex: 1,
+          padding: isMobile ? '0' : '16px 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          height: isMobile ? 'auto' : '180px',
+          overflow: 'hidden'
+        }}>
+          {/* Header Row - Title + Change Episode Button */}
+          {!isMobile && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px'
+            }}>
+              <h2 style={{
+                color: '#FFF',
+                fontSize: '1.125rem',
+                margin: 0,
+                fontWeight: '600'
+              }}>Your Referral Link</h2>
+              <button
+                onClick={handleChangeEpisodeClick}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: '#B5B5B5',
+                  padding: '8px 14px',
+                  borderRadius: '6px',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  flexShrink: 0
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.25)';
+                  e.currentTarget.style.color = '#FFF';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+                  e.currentTarget.style.color = '#B5B5B5';
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+                Change Episode
+              </button>
+            </div>
+          )}
+
+          {/* Mobile Title */}
+          {isMobile && (
+            <h2 style={{
+              color: '#FFF',
+              fontSize: '1.125rem',
+              margin: 0,
+              marginBottom: '8px'
+            }}>Your Referral Link</h2>
+          )}
+
+          <p style={{
+            color: '#B5B5B5',
+            fontSize: '1rem',
+            lineHeight: '1.5',
+            margin: 0,
+            marginTop: isMobile ? '0' : '6px'
+          }}>Share this link to earn points! Each unique click gives you 1 point.</p>
+
+          {/* Mobile: Thumbnail - Clickable */}
+          {isMobile && selectedEpisode && (
+            <div
+              onClick={handleChangeEpisodeClick}
+              style={{
+                width: '100%',
+                aspectRatio: '16/9',
+                borderRadius: '8px',
+                overflow: 'hidden',
+                marginBottom: '12px',
+                position: 'relative',
+                cursor: 'pointer'
+              }}
+            >
+              <img
+                src={getYouTubeThumbnail(selectedEpisode.youtube_video_id)}
+                alt={`Video Thumbnail: ${selectedEpisode.title}`}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover'
+                }}
+              />
+              {/* Tap hint overlay - always slightly visible on mobile */}
+              <div style={{
+                position: 'absolute',
+                bottom: '8px',
+                right: '8px',
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                borderRadius: '4px',
+                padding: '6px 10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+                <span style={{ color: '#FFF', fontSize: '12px', fontWeight: '500' }}>Change</span>
+              </div>
+            </div>
+          )}
 
         {isMobile ? (
           // Mobile: Stacked layout
           <div>
-            <div style={{
-              background: '#1B1B1B',
-              border: '1px solid transparent',
-              backgroundImage: 'linear-gradient(#1B1B1B, #1B1B1B), linear-gradient(135deg, #919191 0%, #5A2F30 100%)',
-              backgroundOrigin: 'border-box',
-              backgroundClip: 'padding-box, border-box',
-              padding: '16px',
-              borderRadius: '12px',
-              marginBottom: '12px',
-              wordBreak: 'break-all'
-            }}>
+            <div
+              onClick={copyToClipboard}
+              style={{
+                background: '#1B1B1B',
+                border: '1px solid transparent',
+                backgroundImage: 'linear-gradient(#1B1B1B, #1B1B1B), linear-gradient(135deg, #919191 0%, #5A2F30 100%)',
+                backgroundOrigin: 'border-box',
+                backgroundClip: 'padding-box, border-box',
+                padding: '16px',
+                borderRadius: '12px',
+                marginBottom: '12px',
+                wordBreak: 'break-all',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
               <code style={{
                 color: '#B5B5B5',
                 fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-                fontSize: '0.8125rem',
+                fontSize: '0.9375rem',
                 fontWeight: '400',
-                lineHeight: '1.4',
+                lineHeight: '1.5',
                 background: 'transparent',
                 display: 'block'
-              }}>{stats?.referralUrl}</code>
+              }}>{referralUrlWithEpisode}</code>
             </div>
             <button onClick={copyToClipboard} style={{
               background: '#FFF',
@@ -228,46 +542,370 @@ const Dashboard = () => {
             </button>
           </div>
         ) : (
-          // Desktop: Horizontal layout
-          <div style={{
-            background: '#1B1B1B',
-            border: '1px solid transparent',
-            backgroundImage: 'linear-gradient(#1B1B1B, #1B1B1B), linear-gradient(135deg, #919191 0%, #5A2F30 100%)',
-            backgroundOrigin: 'border-box',
-            backgroundClip: 'padding-box, border-box',
-            padding: '15px',
-            borderRadius: '10px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <code style={{
-              flex: 1,
-              color: '#B5B5B5',
-              fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-              fontSize: '0.9375rem',
-              fontStyle: 'normal',
-              fontWeight: '400',
-              lineHeight: '1.25rem',
-              letterSpacing: '0',
-              marginRight: '10px',
-              background: 'transparent'
-            }}>{stats?.referralUrl}</code>
-            <button onClick={copyToClipboard} style={{
+          // Desktop: Horizontal layout - Compact
+          <div
+            onClick={copyToClipboard}
+            style={{
+              background: '#1B1B1B',
+              border: '1px solid transparent',
+              backgroundImage: 'linear-gradient(#1B1B1B, #1B1B1B), linear-gradient(135deg, #FFF 0%, #5A2F30 100%)',
+              backgroundOrigin: 'border-box',
+              backgroundClip: 'padding-box, border-box',
+              padding: '10px 12px',
+              borderRadius: '8px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '10px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundImage = 'linear-gradient(#252525, #252525), linear-gradient(135deg, #FFF 0%, #5A2F30 100%)';
+              e.currentTarget.querySelector('code').style.color = '#FFF';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundImage = 'linear-gradient(#1B1B1B, #1B1B1B), linear-gradient(135deg, #FFF 0%, #5A2F30 100%)';
+              e.currentTarget.querySelector('code').style.color = '#B5B5B5';
+            }}
+          >
+            <code
+              style={{
+                flex: 1,
+                color: '#B5B5B5',
+                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                fontSize: '0.875rem',
+                fontWeight: '400',
+                lineHeight: '1.3',
+                background: 'transparent',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                transition: 'color 0.2s ease',
+                padding: '4px 0'
+              }}
+            >{referralUrlWithEpisode}</code>
+            <button onClick={(e) => { e.stopPropagation(); copyToClipboard(); }} style={{
               background: '#FFF',
               color: '#000',
               border: 'none',
               padding: '10px 20px',
-              borderRadius: '5px',
-              fontSize: '16px',
-              fontWeight: '500',
+              borderRadius: '6px',
+              fontSize: '1rem',
+              fontWeight: '600',
               cursor: 'pointer',
-              transition: 'all 0.3s ease'
+              transition: 'all 0.2s ease',
+              flexShrink: 0
             }}>
               {copied ? 'Copied!' : 'Copy'}
             </button>
           </div>
         )}
+        </div>
+
+        {/* Episode Selector - Expanded (Full Width) */}
+        <div style={{
+          width: '100%',
+          padding: isMobile ? '0' : '20px 24px',
+          maxHeight: showEpisodeSelector ? '800px' : '0',
+          opacity: showEpisodeSelector ? 1 : 0,
+          overflow: 'hidden',
+          transition: 'max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-in-out, transform 0.3s ease-out',
+          transform: showEpisodeSelector ? 'translateY(0)' : 'translateY(-20px)',
+          visibility: showEpisodeSelector ? 'visible' : 'hidden'
+        }}>
+          <div style={{
+            display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
+            alignItems: isMobile ? 'stretch' : 'center',
+            justifyContent: 'space-between',
+            marginBottom: '16px',
+            gap: '12px'
+          }}>
+            <h3 style={{
+              color: '#FFF',
+              margin: 0,
+              fontSize: isMobile ? '1rem' : '1.125rem'
+            }}>
+              Select Episode to Share
+            </h3>
+            <button
+              onClick={() => {
+                setShowEpisodeSelector(false);
+                setSearchQuery('');
+              }}
+              style={{
+                background: 'transparent',
+                color: '#B5B5B5',
+                border: '1px solid #444',
+                padding: isMobile ? '8px 16px' : '6px 12px',
+                borderRadius: '6px',
+                fontSize: '13px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                touchAction: 'manipulation'
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+
+          {/* Search Bar */}
+          <div style={{ marginBottom: '16px' }}>
+              <input
+                type="text"
+                placeholder="Search episodes..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: isMobile ? '14px 16px' : '12px 16px',
+                  background: '#1B1B1B',
+                  border: '1px solid #333',
+                  borderRadius: isMobile ? '12px' : '8px',
+                  color: '#FFF',
+                  fontSize: isMobile ? '15px' : '16px',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  transition: 'border-color 0.2s ease'
+                }}
+                onFocus={(e) => { e.target.style.borderColor = '#666'; }}
+                onBlur={(e) => { e.target.style.borderColor = '#333'; }}
+              />
+            </div>
+
+            {/* Episode Grid */}
+            {episodesLoading ? (
+              <div style={{ padding: '40px', textAlign: 'center', color: '#888' }}>
+                Loading episodes...
+              </div>
+            ) : (
+              <div style={{
+                maxHeight: isMobile ? '400px' : '500px',
+                overflowY: 'auto',
+                margin: '-8px',
+                padding: '8px'
+              }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))',
+                gap: isMobile ? '16px' : '20px'
+              }}>
+                {/* LATEST Option - White box with "LATEST" text */}
+                <div
+                  onClick={handleLatestSelect}
+                  style={{
+                    background: isLatestMode ? '#1a1a1a' : '#141414',
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    border: isLatestMode ? '2px solid #FFF' : '2px solid transparent',
+                    transform: isLatestMode ? 'scale(1.02)' : 'scale(1)',
+                    boxShadow: isLatestMode ? '0 8px 24px rgba(255, 255, 255, 0.1)' : 'none'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isLatestMode) {
+                      e.currentTarget.style.background = '#1a1a1a';
+                      e.currentTarget.style.transform = 'scale(1.01)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isLatestMode) {
+                      e.currentTarget.style.background = '#141414';
+                      e.currentTarget.style.transform = 'scale(1)';
+                    }
+                  }}
+                >
+                  {/* Black Box Thumbnail with LATEST text */}
+                  <div style={{
+                    position: 'relative',
+                    width: '100%',
+                    aspectRatio: '16/9',
+                    overflow: 'hidden',
+                    background: '#000000',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <span style={{
+                      color: '#FFFFFF',
+                      fontSize: isMobile ? '1.5rem' : '2rem',
+                      fontWeight: '700',
+                      letterSpacing: '0.1em'
+                    }}>LATEST</span>
+                    {isLatestMode && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '10px',
+                        right: '10px',
+                        background: '#FFF',
+                        borderRadius: '50%',
+                        width: '28px',
+                        height: '28px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                      }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* LATEST Info */}
+                  <div style={{ padding: '12px' }}>
+                    <h4 style={{
+                      color: '#FFF',
+                      fontSize: '0.9375rem',
+                      fontWeight: '600',
+                      lineHeight: '1.4',
+                      marginBottom: '8px',
+                      margin: 0
+                    }}>
+                      Always Share Latest Episode
+                    </h4>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      color: '#888',
+                      fontSize: '0.8125rem',
+                      marginTop: '8px'
+                    }}>
+                      <span>Auto-updates to newest</span>
+                    </div>
+                  </div>
+                </div>
+
+                {filteredEpisodes.length === 0 && searchQuery ? (
+                  <div style={{
+                    gridColumn: '1 / -1',
+                    padding: '40px',
+                    textAlign: 'center',
+                    color: '#888'
+                  }}>
+                    No episodes found matching "{searchQuery}"
+                  </div>
+                ) : (
+                  filteredEpisodes.map((episode) => {
+                    const isSelected = !isLatestMode && episode.youtube_video_id === selectedVideoId;
+
+                    return (
+                      <div
+                        key={episode.id}
+                        onClick={() => handleEpisodeSelect(episode)}
+                        style={{
+                          background: isSelected ? '#1a1a1a' : '#141414',
+                          borderRadius: '12px',
+                          overflow: 'hidden',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          border: isSelected ? '2px solid #FFF' : '2px solid transparent',
+                          transform: isSelected ? 'scale(1.02)' : 'scale(1)',
+                          boxShadow: isSelected ? '0 8px 24px rgba(255, 255, 255, 0.1)' : 'none'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.background = '#1a1a1a';
+                            e.currentTarget.style.transform = 'scale(1.01)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.background = '#141414';
+                            e.currentTarget.style.transform = 'scale(1)';
+                          }
+                        }}
+                      >
+                        {/* Thumbnail */}
+                        <div style={{
+                          position: 'relative',
+                          width: '100%',
+                          aspectRatio: '16/9',
+                          overflow: 'hidden'
+                        }}>
+                          <img
+                            src={getYouTubeThumbnail(episode.youtube_video_id)}
+                            alt={episode.title}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover'
+                            }}
+                          />
+                          {isSelected && (
+                            <div style={{
+                              position: 'absolute',
+                              top: '10px',
+                              right: '10px',
+                              background: '#FFF',
+                              borderRadius: '50%',
+                              width: '28px',
+                              height: '28px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                            }}>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                              </svg>
+                            </div>
+                          )}
+                          <div style={{
+                            position: 'absolute',
+                            bottom: '10px',
+                            left: '10px',
+                            background: 'rgba(0, 0, 0, 0.8)',
+                            color: '#FFF',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            fontSize: '0.75rem',
+                            fontWeight: '600'
+                          }}>
+                            EP {episode.episode_number}
+                          </div>
+                        </div>
+
+                        {/* Episode Info */}
+                        <div style={{ padding: '12px' }}>
+                          <h4 style={{
+                            color: '#FFF',
+                            fontSize: '0.9375rem',
+                            fontWeight: '600',
+                            lineHeight: '1.4',
+                            marginBottom: '8px',
+                            margin: 0,
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden'
+                          }}>
+                            {truncateText(episode.title, 80)}
+                          </h4>
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            color: '#888',
+                            fontSize: '0.8125rem',
+                            marginTop: '8px'
+                          }}>
+                            <span>{formatRelativeTime(episode.published_at)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+              </div>
+            )}
+        </div>
       </div>
 
       <div style={{

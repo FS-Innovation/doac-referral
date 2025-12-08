@@ -65,13 +65,23 @@ export const authAPI = {
 export const userAPI = {
   getReferralStats: () => api.get('/user/referral-stats'),
   getPurchaseHistory: () => api.get('/user/purchase-history'),
-  updateRedirectPlatform: (platform) => api.put('/user/redirect-platform', { platform })
+  updateRedirectPlatform: (platform) => api.put('/user/redirect-platform', { platform }),
+  getSelectedEpisode: () => api.get('/user/selected-episode'),
+  updateSelectedEpisode: (youtubeVideoId) => api.put('/user/selected-episode', { youtubeVideoId })
 };
 
 // Product endpoints
 export const productAPI = {
   getAll: () => api.get('/products'),
   purchase: (productId) => api.post(`/products/purchase/${productId}`)
+};
+
+// Episodes endpoints
+export const episodesAPI = {
+  getAll: () => api.get('/episodes'),
+  getLatest: () => api.get('/episodes/latest'),
+  getById: (id) => api.get(`/episodes/${id}`),
+  getForReferral: (code, episodeId) => api.get(`/episodes/referral/${code}${episodeId ? `/${episodeId}` : ''}`)
 };
 
 // Admin endpoints

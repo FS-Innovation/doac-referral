@@ -6,9 +6,9 @@ export const getReferralStats = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
 
-    // Get user's referral code, points, and platform preference
+    // Get user's referral code, points, platform preference, and selected episode
     const userResult = await pool.query(
-      'SELECT referral_code, points, redirect_platform FROM users WHERE id = $1',
+      'SELECT referral_code, points, redirect_platform, selected_episode_id FROM users WHERE id = $1',
       [userId]
     );
 
@@ -16,7 +16,7 @@ export const getReferralStats = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const { referral_code, points, redirect_platform } = userResult.rows[0];
+    const { referral_code, points, redirect_platform, selected_episode_id } = userResult.rows[0];
 
     // Get total click count
     const clickCountResult = await pool.query(
@@ -45,6 +45,7 @@ export const getReferralStats = async (req: AuthRequest, res: Response) => {
       points,
       totalClicks,
       redirectPlatform: redirect_platform || 'youtube',
+      selectedEpisodeId: selected_episode_id || null,
       recentClicks: recentClicksResult.rows.map(click => ({
         ipAddress: click.ip_address,
         userAgent: click.user_agent,
@@ -110,5 +111,60 @@ export const updateRedirectPlatform = async (req: AuthRequest, res: Response) =>
   } catch (error) {
     console.error('Update redirect platform error:', error);
     res.status(500).json({ error: 'Failed to update platform preference' });
+  }
+};
+
+export const updateSelectedEpisode = async (req: AuthRequest, res: Response) => {
+  try {
+    const { youtubeVideoId } = req.body;
+    const userId = req.user!.id;
+
+    // youtubeVideoId can be null (for "Latest") or a YouTube video ID string
+    // Validate: if provided, must be a string matching YouTube video ID format
+    if (youtubeVideoId !== null && youtubeVideoId !== undefined) {
+      if (typeof youtubeVideoId !== 'string' || youtubeVideoId.length > 20) {
+        return res.status(400).json({
+          error: 'Invalid YouTube video ID'
+        });
+      }
+    }
+
+    // Update user's selected episode (NULL means "Latest")
+    await pool.query(
+      'UPDATE users SET selected_episode_id = $1 WHERE id = $2',
+      [youtubeVideoId || null, userId]
+    );
+
+    console.log(`✅ User ${userId} updated selected episode to: ${youtubeVideoId || 'LATEST'}`);
+
+    res.json({
+      message: 'Episode preference updated successfully',
+      selectedEpisodeId: youtubeVideoId || null
+    });
+  } catch (error) {
+    console.error('Update selected episode error:', error);
+    res.status(500).json({ error: 'Failed to update episode preference' });
+  }
+};
+
+export const getSelectedEpisode = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+
+    const result = await pool.query(
+      'SELECT selected_episode_id FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      selectedEpisodeId: result.rows[0].selected_episode_id || null
+    });
+  } catch (error) {
+    console.error('Get selected episode error:', error);
+    res.status(500).json({ error: 'Failed to fetch episode preference' });
   }
 };

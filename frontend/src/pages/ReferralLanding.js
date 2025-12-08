@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import api from '../services/api';
+import { useParams, useSearchParams } from 'react-router-dom';
+import api, { episodesAPI } from '../services/api';
+import { getYouTubeThumbnail, setReferralSourceEpisode } from '../utils/episode';
 
 const ReferralLanding = () => {
   const { code } = useParams();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
-  const [settings, setSettings] = useState(null);
+  const [episode, setEpisode] = useState(null);
   const [error, setError] = useState(null);
   const [redirecting, setRedirecting] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -19,18 +21,30 @@ const ReferralLanding = () => {
   }, []);
 
   useEffect(() => {
-    trackClickAndLoadSettings();
+    trackClickAndLoadEpisode();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
-  const trackClickAndLoadSettings = async () => {
+  const trackClickAndLoadEpisode = async () => {
     try {
       console.log('Tracking referral click for code:', code);
+      // Track the click
       await api.get(`/referral/${code}`);
-      const response = await api.get('/referral/settings');
-      setSettings(response.data);
+
+      // Get episode ID from query params (e.g., ?e=123)
+      const episodeId = searchParams.get('e');
+
+      // Store episode ID in sessionStorage for deep link preservation
+      // This allows the Dashboard to pre-select this episode after signup/login
+      if (episodeId) {
+        setReferralSourceEpisode(episodeId);
+      }
+
+      // Fetch the specific episode or latest if not specified
+      const response = await episodesAPI.getForReferral(code, episodeId);
+      setEpisode(response.data);
     } catch (err) {
-      console.error('Failed to track click or load settings:', err);
+      console.error('Failed to track click or load episode:', err);
       setError('Failed to load content. Please try again.');
     } finally {
       setLoading(false);
@@ -41,7 +55,14 @@ const ReferralLanding = () => {
     if (redirecting) return;
     setRedirecting(true);
     try {
-      const response = await api.post('/referral/award-points', { code, platform });
+      // Pass episode ID so backend uses correct URLs for this episode
+      console.log(`Platform click: platform=${platform}, episodeId=${episode?.id}, episode=`, episode);
+      const response = await api.post('/referral/award-points', {
+        code,
+        platform,
+        episodeId: episode?.id
+      });
+      console.log('Award points response:', response.data);
       const webUrl = response.data.webUrl;
       const appUrl = response.data.redirectUrl;
 
@@ -356,8 +377,8 @@ const ReferralLanding = () => {
           </p>
         )}
 
-        {/* Video Thumbnail Card */}
-        {settings?.youtube && (
+        {/* Episode Thumbnail Card */}
+        {episode && (
           <div style={{
             padding: '1px',
             borderRadius: '16px',
@@ -371,8 +392,8 @@ const ReferralLanding = () => {
               overflow: 'hidden'
             }}>
               <img
-                src={settings.youtube.thumbnail}
-                alt={settings.youtube.title}
+                src={getYouTubeThumbnail(episode.youtube_video_id)}
+                alt={episode.title}
                 style={{
                   width: '100%',
                   height: 'auto',
@@ -395,15 +416,22 @@ const ReferralLanding = () => {
                   WebkitBoxOrient: 'vertical',
                   overflow: 'hidden'
                 }}>
-                  {settings.youtube.title}
+                  {episode.title}
                 </h1>
-                <p style={{
-                  fontSize: '0.9375rem',
-                  color: '#888',
-                  fontWeight: '500'
-                }}>
-                  {settings.youtube.channel}
-                </p>
+                {episode.description && (
+                  <p style={{
+                    fontSize: '0.875rem',
+                    color: '#888',
+                    fontWeight: '400',
+                    lineHeight: '1.5',
+                    display: '-webkit-box',
+                    WebkitLineClamp: '3',
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden'
+                  }}>
+                    {episode.description}
+                  </p>
+                )}
               </div>
             </div>
           </div>
