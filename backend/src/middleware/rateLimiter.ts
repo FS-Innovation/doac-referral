@@ -107,28 +107,64 @@ export const platformButtonLimiter = rateLimit({
   },
 });
 
-// CRITICAL: Referral click protection - NO IP-based rate limiting
+// IP Blocklist middleware - blocks known bad actors entirely
+export const ipBlocklist = async (req: Request, res: Response, next: NextFunction) => {
+  const ip = req.ip || req.socket.remoteAddress || '';
+
+  try {
+    const isBlocked = await redisClient.get(`blocked:ip:${ip}`);
+    if (isBlocked) {
+      console.log(`🚫 Blocked request from banned IP: ${ip}`);
+      return res.status(403).json({ error: 'Access denied' });
+    }
+  } catch (error) {
+    // If Redis fails, allow request through
+  }
+
+  next();
+};
+
+// Helper to block an IP (call from admin endpoint or manually)
+export const blockIP = async (ip: string, durationSeconds: number = 86400 * 30) => {
+  await redisClient.setex(`blocked:ip:${ip}`, durationSeconds, '1');
+  console.log(`🚫 IP ${ip} blocked for ${durationSeconds} seconds`);
+};
+
+// CRITICAL: Referral click protection - NO IP-based rate limiting for normal use
 // Fraud prevention is 100% fingerprint-based (device ID, device FP, browser FP)
-// This limiter only prevents catastrophic abuse (e.g., 1000 requests/second DoS attack)
+// This limiter only prevents catastrophic abuse (e.g., 50+ requests/minute DoS attack)
+// When triggered, automatically blocks the IP for 24 hours
 export const referralClickLimiter = rateLimit({
   store: redisAvailable ? new RedisStore({
     // @ts-ignore
     sendCommand: (...args: any[]) => redisClient.call(...args),
     prefix: 'rl:referral:',
   }) : undefined,
-  windowMs: 60 * 1000, // 1 minute (shortened window)
-  max: 50, // Very high limit - only blocks obvious DoS attacks, not legitimate traffic
+  windowMs: 60 * 1000, // 1 minute window
+  max: 50, // 50 requests/min threshold - only bots/DoS would hit this
   message: 'Too many requests. Please slow down.',
   skip: () => {
     // Skip rate limiting in development or if Redis is down
     return process.env.NODE_ENV === 'development' || (!redisAvailable && process.env.NODE_ENV === 'production');
   },
-  handler: (req: Request, _res: Response, next: NextFunction) => {
-    console.warn(`⚠️  Extreme rate limit exceeded for referral click from IP: ${req.ip} (50 requests/min) - Likely DoS attack`);
-    // Still allow request through but flag for manual review
-    req.body.skipPointsAward = true;
-    req.body.fraudReason = 'rate_limit_dos_protection';
-    next();
+  handler: async (req: Request, res: Response, _next: NextFunction) => {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    console.error(`🚨 DoS ATTACK DETECTED from IP: ${ip} (50+ requests/min)`);
+    console.error(`   Auto-blocking IP for 24 hours...`);
+
+    // Auto-block the IP for 24 hours (datacenter bots only hit this threshold)
+    try {
+      await redisClient.setex(`blocked:ip:${ip}`, 86400, 'auto-blocked-dos');
+      console.error(`   ✅ IP ${ip} blocked for 24 hours`);
+    } catch (error) {
+      console.error(`   ❌ Failed to auto-block IP:`, error);
+    }
+
+    // Return 403 Forbidden
+    return res.status(403).json({
+      error: 'Access denied',
+      message: 'Your IP has been temporarily blocked due to suspicious activity.'
+    });
   },
 });
 

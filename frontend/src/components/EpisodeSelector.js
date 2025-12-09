@@ -285,7 +285,10 @@ const EpisodeSelector = ({ onEpisodeSelect, referralCode }) => {
             gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))',
             gap: isMobile ? '16px' : '20px',
             maxHeight: isMobile ? '400px' : '500px',
-            overflowY: 'auto'
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            margin: isMobile ? '-12px' : '-8px',
+            padding: isMobile ? '12px' : '8px'
           }}>
             {filteredEpisodes.length === 0 ? (
               <div style={{
@@ -311,17 +314,17 @@ const EpisodeSelector = ({ onEpisodeSelect, referralCode }) => {
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
                       border: isSelected ? '2px solid #FFF' : '2px solid transparent',
-                      transform: isSelected ? 'scale(1.02)' : 'scale(1)',
+                      transform: isSelected && !isMobile ? 'scale(1.02)' : 'scale(1)',
                       boxShadow: isSelected ? '0 8px 24px rgba(255, 255, 255, 0.1)' : 'none'
                     }}
                     onMouseEnter={(e) => {
-                      if (!isSelected) {
+                      if (!isSelected && !isMobile) {
                         e.currentTarget.style.background = '#1a1a1a';
                         e.currentTarget.style.transform = 'scale(1.01)';
                       }
                     }}
                     onMouseLeave={(e) => {
-                      if (!isSelected) {
+                      if (!isSelected && !isMobile) {
                         e.currentTarget.style.background = '#141414';
                         e.currentTarget.style.transform = 'scale(1)';
                       }

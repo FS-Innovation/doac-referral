@@ -446,11 +446,18 @@ const Dashboard = () => {
 
           <p style={{
             color: '#B5B5B5',
-            fontSize: '1rem',
+            fontSize: isMobile ? '0.9375rem' : '1rem',
             lineHeight: '1.5',
             margin: 0,
-            marginTop: isMobile ? '0' : '6px'
-          }}>Share this link to earn points! Each unique click gives you 1 point.</p>
+            marginTop: isMobile ? '0' : '6px',
+            marginBottom: isMobile ? '20px' : '0'
+          }}>
+            {isMobile ? (
+              <>Share this link to earn points!<br />Each unique click gives you 1 point.</>
+            ) : (
+              'Share this link to earn points! Each unique click gives you 1 point.'
+            )}
+          </p>
 
           {/* Mobile: Thumbnail - Clickable */}
           {isMobile && selectedEpisode && (
@@ -498,7 +505,7 @@ const Dashboard = () => {
 
         {isMobile ? (
           // Mobile: Stacked layout
-          <div>
+          <div style={{ marginBottom: showEpisodeSelector ? '24px' : '0' }}>
             <div
               onClick={copyToClipboard}
               style={{
@@ -606,74 +613,143 @@ const Dashboard = () => {
         {/* Episode Selector - Expanded (Full Width) */}
         <div style={{
           width: '100%',
-          padding: isMobile ? '0' : '20px 24px',
+          padding: isMobile ? '0 16px 16px 16px' : '20px 24px',
           maxHeight: showEpisodeSelector ? '800px' : '0',
           opacity: showEpisodeSelector ? 1 : 0,
           overflow: 'hidden',
           transition: 'max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-in-out, transform 0.3s ease-out',
           transform: showEpisodeSelector ? 'translateY(0)' : 'translateY(-20px)',
-          visibility: showEpisodeSelector ? 'visible' : 'hidden'
+          visibility: showEpisodeSelector ? 'visible' : 'hidden',
+          boxSizing: 'border-box'
         }}>
-          <div style={{
-            display: 'flex',
-            flexDirection: isMobile ? 'column' : 'row',
-            alignItems: isMobile ? 'stretch' : 'center',
-            justifyContent: 'space-between',
-            marginBottom: '16px',
-            gap: '12px'
-          }}>
-            <h3 style={{
-              color: '#FFF',
-              margin: 0,
-              fontSize: isMobile ? '1rem' : '1.125rem'
-            }}>
-              Select Episode to Share
-            </h3>
-            <button
-              onClick={() => {
-                setShowEpisodeSelector(false);
-                setSearchQuery('');
-              }}
-              style={{
-                background: 'transparent',
-                color: '#B5B5B5',
-                border: '1px solid #444',
-                padding: isMobile ? '8px 16px' : '6px 12px',
-                borderRadius: '6px',
-                fontSize: '13px',
-                fontWeight: '500',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                touchAction: 'manipulation'
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-
-          {/* Search Bar */}
-          <div style={{ marginBottom: '16px' }}>
-              <input
-                type="text"
-                placeholder="Search episodes..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: isMobile ? '14px 16px' : '12px 16px',
-                  background: '#1B1B1B',
-                  border: '1px solid #333',
-                  borderRadius: isMobile ? '12px' : '8px',
+          {/* Mobile: Cleaner stacked layout with more spacing */}
+          {isMobile ? (
+            <>
+              {/* Header with title and cancel */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '20px',
+                paddingBottom: '16px',
+                borderBottom: '1px solid #333'
+              }}>
+                <h3 style={{
                   color: '#FFF',
-                  fontSize: isMobile ? '15px' : '16px',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                  transition: 'border-color 0.2s ease'
-                }}
-                onFocus={(e) => { e.target.style.borderColor = '#666'; }}
-                onBlur={(e) => { e.target.style.borderColor = '#333'; }}
-              />
-            </div>
+                  margin: 0,
+                  fontSize: '1.125rem',
+                  fontWeight: '600'
+                }}>
+                  Select Episode
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowEpisodeSelector(false);
+                    setSearchQuery('');
+                  }}
+                  style={{
+                    background: '#333',
+                    color: '#FFF',
+                    border: 'none',
+                    padding: '10px 20px',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    touchAction: 'manipulation'
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+
+              {/* Search Bar */}
+              <div style={{ marginBottom: '20px' }}>
+                <input
+                  type="text"
+                  placeholder="Search episodes..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '14px 16px',
+                    background: '#1B1B1B',
+                    border: '1px solid #333',
+                    borderRadius: '12px',
+                    color: '#FFF',
+                    fontSize: '16px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    transition: 'border-color 0.2s ease'
+                  }}
+                  onFocus={(e) => { e.target.style.borderColor = '#666'; }}
+                  onBlur={(e) => { e.target.style.borderColor = '#333'; }}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Desktop layout */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '16px',
+                gap: '12px'
+              }}>
+                <h3 style={{
+                  color: '#FFF',
+                  margin: 0,
+                  fontSize: '1.125rem'
+                }}>
+                  Select Episode to Share
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowEpisodeSelector(false);
+                    setSearchQuery('');
+                  }}
+                  style={{
+                    background: 'transparent',
+                    color: '#B5B5B5',
+                    border: '1px solid #444',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+
+              {/* Search Bar */}
+              <div style={{ marginBottom: '16px' }}>
+                <input
+                  type="text"
+                  placeholder="Search episodes..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    background: '#1B1B1B',
+                    border: '1px solid #333',
+                    borderRadius: '8px',
+                    color: '#FFF',
+                    fontSize: '16px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    transition: 'border-color 0.2s ease'
+                  }}
+                  onFocus={(e) => { e.target.style.borderColor = '#666'; }}
+                  onBlur={(e) => { e.target.style.borderColor = '#333'; }}
+                />
+              </div>
+            </>
+          )}
 
             {/* Episode Grid */}
             {episodesLoading ? (
@@ -684,8 +760,9 @@ const Dashboard = () => {
               <div style={{
                 maxHeight: isMobile ? '400px' : '500px',
                 overflowY: 'auto',
-                margin: '-8px',
-                padding: '8px'
+                overflowX: 'hidden',
+                margin: isMobile ? '-12px' : '-8px',
+                padding: isMobile ? '12px' : '8px'
               }}>
               <div style={{
                 display: 'grid',
@@ -702,17 +779,17 @@ const Dashboard = () => {
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
                     border: isLatestMode ? '2px solid #FFF' : '2px solid transparent',
-                    transform: isLatestMode ? 'scale(1.02)' : 'scale(1)',
+                    transform: isLatestMode && !isMobile ? 'scale(1.02)' : 'scale(1)',
                     boxShadow: isLatestMode ? '0 8px 24px rgba(255, 255, 255, 0.1)' : 'none'
                   }}
                   onMouseEnter={(e) => {
-                    if (!isLatestMode) {
+                    if (!isLatestMode && !isMobile) {
                       e.currentTarget.style.background = '#1a1a1a';
                       e.currentTarget.style.transform = 'scale(1.01)';
                     }
                   }}
                   onMouseLeave={(e) => {
-                    if (!isLatestMode) {
+                    if (!isLatestMode && !isMobile) {
                       e.currentTarget.style.background = '#141414';
                       e.currentTarget.style.transform = 'scale(1)';
                     }
@@ -805,17 +882,17 @@ const Dashboard = () => {
                           cursor: 'pointer',
                           transition: 'all 0.2s ease',
                           border: isSelected ? '2px solid #FFF' : '2px solid transparent',
-                          transform: isSelected ? 'scale(1.02)' : 'scale(1)',
+                          transform: isSelected && !isMobile ? 'scale(1.02)' : 'scale(1)',
                           boxShadow: isSelected ? '0 8px 24px rgba(255, 255, 255, 0.1)' : 'none'
                         }}
                         onMouseEnter={(e) => {
-                          if (!isSelected) {
+                          if (!isSelected && !isMobile) {
                             e.currentTarget.style.background = '#1a1a1a';
                             e.currentTarget.style.transform = 'scale(1.01)';
                           }
                         }}
                         onMouseLeave={(e) => {
-                          if (!isSelected) {
+                          if (!isSelected && !isMobile) {
                             e.currentTarget.style.background = '#141414';
                             e.currentTarget.style.transform = 'scale(1)';
                           }

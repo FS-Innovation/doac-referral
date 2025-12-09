@@ -10,7 +10,7 @@ import productRoutes from './routes/product';
 import referralRoutes from './routes/referral';
 import adminRoutes from './routes/admin';
 import episodesRoutes from './routes/episodes';
-import { generalLimiter, loginLimiter, registerLimiter, adminLimiter } from './middleware/rateLimiter';
+import { generalLimiter, loginLimiter, registerLimiter, adminLimiter, ipBlocklist } from './middleware/rateLimiter';
 // import { initializeMetadataBackground } from './startup/initializeMetadata'; // DISABLED - causes DB connection timeouts
 
 dotenv.config();
@@ -62,6 +62,10 @@ app.use(cookieParser());
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Global IP blocklist - blocks banned IPs from ALL endpoints
+// Applied before any routes to completely block DoS attackers
+app.use(ipBlocklist);
 
 // Root route (for load balancer health checks)
 app.get('/', (_req, res) => {
