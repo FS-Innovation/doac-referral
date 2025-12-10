@@ -692,10 +692,7 @@ const Dashboard = () => {
               onClick={copyToClipboard}
               style={{
                 background: '#1B1B1B',
-                border: '1px solid transparent',
-                backgroundImage: 'linear-gradient(#1B1B1B, #1B1B1B), linear-gradient(135deg, #919191 0%, #5A2F30 100%)',
-                backgroundOrigin: 'border-box',
-                backgroundClip: 'padding-box, border-box',
+                border: '1px solid rgba(255, 255, 255, 0.6)',
                 padding: '16px',
                 borderRadius: '12px',
                 marginBottom: '12px',
@@ -736,10 +733,7 @@ const Dashboard = () => {
             onClick={copyToClipboard}
             style={{
               background: '#1B1B1B',
-              border: '1px solid transparent',
-              backgroundImage: 'linear-gradient(#1B1B1B, #1B1B1B), linear-gradient(135deg, #FFF 0%, #5A2F30 100%)',
-              backgroundOrigin: 'border-box',
-              backgroundClip: 'padding-box, border-box',
+              border: '1px solid rgba(255, 255, 255, 0.6)',
               padding: '10px 12px',
               borderRadius: '8px',
               display: 'flex',
@@ -750,11 +744,11 @@ const Dashboard = () => {
               transition: 'all 0.2s ease'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundImage = 'linear-gradient(#252525, #252525), linear-gradient(135deg, #FFF 0%, #5A2F30 100%)';
+              e.currentTarget.style.background = '#252525';
               e.currentTarget.querySelector('code').style.color = '#FFF';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundImage = 'linear-gradient(#1B1B1B, #1B1B1B), linear-gradient(135deg, #FFF 0%, #5A2F30 100%)';
+              e.currentTarget.style.background = '#1B1B1B';
               e.currentTarget.querySelector('code').style.color = '#B5B5B5';
             }}
           >
@@ -1327,7 +1321,14 @@ const Dashboard = () => {
                     position: 'absolute',
                     width: isMobile ? '200px' : '300px',
                     background: '#000',
-                    border: `1px solid ${isActive || isHovered ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.2)'}`,
+                    border: '1px solid transparent',
+                    backgroundImage: isActive || isHovered
+                      ? 'linear-gradient(#000, #000), linear-gradient(135deg, #FFF 0%, #5A2F30 100%)'
+                      : 'none',
+                    backgroundColor: '#000',
+                    backgroundOrigin: 'border-box',
+                    backgroundClip: 'padding-box, border-box',
+                    borderColor: isActive || isHovered ? 'transparent' : 'rgba(255, 255, 255, 0.2)',
                     borderRadius: '16px',
                     overflow: 'hidden',
                     boxShadow: isActive
@@ -1454,7 +1455,7 @@ const Dashboard = () => {
                       fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
                       textAlign: 'center'
                     }}>
-                      {isMystery ? 'For The Dedicated' : isDiscountCard ? `${prize.name.replace(' Off', '')} off DOAC shop` : prize.name}
+                      {isMystery ? 'For the 1%' : isDiscountCard ? `${prize.name.replace(' Off', '')} off DOAC shop` : prize.name}
                     </h3>
 
                     {/* Progress Bar - hidden for mystery */}
