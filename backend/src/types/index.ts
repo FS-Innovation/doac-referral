@@ -46,3 +46,44 @@ export interface AuthRequest extends Request {
     is_admin: boolean;
   };
 }
+
+export interface PrizeTier {
+  id: number;
+  tier_number: number;
+  name: string;
+  description: string;
+  points_required: number;
+  prize_type: 'discount_code' | 'physical_product' | 'mystery';
+  discount_percentage: number | null;
+  is_mystery: boolean;
+  is_active: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface PrizeCode {
+  id: number;
+  tier_id: number;
+  code: string;
+  claimed_by: number | null;
+  claimed_at: Date | null;
+  expires_at: Date | null;
+  is_used: boolean;
+  created_at: Date;
+}
+
+export interface UserPrizeClaim {
+  id: number;
+  user_id: number;
+  tier_id: number;
+  prize_code_id: number | null;
+  points_at_claim: number;
+  claimed_at: Date;
+}
+
+export interface PrizeTierWithStatus extends PrizeTier {
+  status: 'locked' | 'unlocked' | 'claimed';
+  progress: number; // 0-100 percentage
+  claimed_code?: string; // The code if claimed
+  claimed_at?: Date;
+}

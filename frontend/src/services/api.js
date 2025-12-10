@@ -84,6 +84,13 @@ export const episodesAPI = {
   getForReferral: (code, episodeId) => api.get(`/episodes/referral/${code}${episodeId ? `/${episodeId}` : ''}`)
 };
 
+// Prize endpoints
+export const prizeAPI = {
+  getTiers: () => api.get('/prizes'),
+  claim: (tierId) => api.post(`/prizes/claim/${tierId}`),
+  getClaimed: () => api.get('/prizes/claimed')
+};
+
 // Admin endpoints
 export const adminAPI = {
   // Products

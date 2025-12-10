@@ -10,6 +10,7 @@ import productRoutes from './routes/product';
 import referralRoutes from './routes/referral';
 import adminRoutes from './routes/admin';
 import episodesRoutes from './routes/episodes';
+import prizesRoutes from './routes/prizes';
 import { generalLimiter, loginLimiter, registerLimiter, adminLimiter, ipBlocklist } from './middleware/rateLimiter';
 // import { initializeMetadataBackground } from './startup/initializeMetadata'; // DISABLED - causes DB connection timeouts
 
@@ -80,6 +81,7 @@ app.use('/api/products', generalLimiter, productRoutes);
 app.use('/api/referral', referralRoutes); // Has its own specific rate limiting
 app.use('/api/admin', adminLimiter, adminRoutes);
 app.use('/api/episodes', generalLimiter, episodesRoutes);
+app.use('/api/prizes', generalLimiter, prizesRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
