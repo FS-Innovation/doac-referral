@@ -1109,19 +1109,6 @@ const Dashboard = () => {
                               </svg>
                             </div>
                           )}
-                          <div style={{
-                            position: 'absolute',
-                            bottom: '10px',
-                            left: '10px',
-                            background: 'rgba(0, 0, 0, 0.8)',
-                            color: '#FFF',
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            fontSize: '0.75rem',
-                            fontWeight: '600'
-                          }}>
-                            EP {episode.episode_number}
-                          </div>
                         </div>
 
                         {/* Episode Info */}
