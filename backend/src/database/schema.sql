@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS prize_tiers (
   points_required INTEGER NOT NULL,
   prize_type VARCHAR(50) NOT NULL, -- 'discount_code', 'physical_product', 'mystery'
   discount_percentage INTEGER, -- For discount codes (10, 25, 50 etc)
+  reward_tier_code VARCHAR(50), -- Klaviyo reward tier code (PERKS10, PERKS25, etc)
   is_mystery BOOLEAN DEFAULT FALSE, -- Hidden prize (Tier 3)
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -141,7 +142,9 @@ CREATE TABLE IF NOT EXISTS user_prize_claims (
   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
   tier_id INTEGER REFERENCES prize_tiers(id) ON DELETE CASCADE,
   prize_code_id INTEGER REFERENCES prize_codes(id) ON DELETE SET NULL,
-  points_at_claim INTEGER NOT NULL, -- Points user had when claimed
+  points_spent INTEGER NOT NULL, -- Points deducted for this redemption
+  points_at_claim INTEGER NOT NULL, -- Points user had when claimed (before deduction)
+  klaviyo_event_sent BOOLEAN DEFAULT FALSE, -- Track if Klaviyo event was sent
   claimed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT unique_user_tier UNIQUE (user_id, tier_id)
 );
@@ -152,20 +155,24 @@ CREATE INDEX IF NOT EXISTS idx_prize_codes_claimed_by ON prize_codes(claimed_by)
 CREATE INDEX IF NOT EXISTS idx_user_prize_claims_user_id ON user_prize_claims(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_prize_claims_tier_id ON user_prize_claims(tier_id);
 
--- Seed initial prize tiers
+-- Seed initial prize tiers with Klaviyo reward tier codes
 -- TIER 1: Discount codes (Shopify single-use codes)
 -- TIER 2: Physical products
 -- TIER 3: Mystery prize (hidden)
-INSERT INTO prize_tiers (tier_number, name, description, points_required, prize_type, discount_percentage, is_mystery) VALUES
+INSERT INTO prize_tiers (tier_number, name, description, points_required, prize_type, discount_percentage, reward_tier_code, is_mystery) VALUES
   -- TIER 1: Discount Codes
-  (1, '10% Off', 'Get 10% off your next purchase', 1000, 'discount_code', 10, FALSE),
-  (2, '25% Off', 'Get 25% off your next purchase', 2000, 'discount_code', 25, FALSE),
-  (3, '50% Off', 'Get 50% off your next purchase', 3000, 'discount_code', 50, FALSE),
+  (1, '10% Off', 'Get 10% off your next purchase', 1000, 'discount_code', 10, 'PERKS10', FALSE),
+  (2, '25% Off', 'Get 25% off your next purchase', 2000, 'discount_code', 25, 'PERKS25', FALSE),
+  (3, '50% Off', 'Get 50% off your next purchase', 3000, 'discount_code', 50, 'PERKS50', FALSE),
   -- TIER 2: Physical Products (4,000 points each)
-  (4, 'Conversation Cards Vol. 1', 'The original DOAC Conversation Cards deck', 4000, 'physical_product', NULL, FALSE),
-  (5, 'Conversation Cards Vol. 2', 'Deeper conversations, stronger connections', 4000, 'physical_product', NULL, FALSE),
-  (6, 'Conversation Cards Vol. 3', 'The latest edition of our bestselling cards', 4000, 'physical_product', NULL, FALSE),
-  (7, '1% Diary', 'The iconic DOAC diary', 5000, 'physical_product', NULL, FALSE),
-  -- TIER 3: Mystery Prize (completely hidden)
-  (8, '???', '???', 5000, 'mystery', NULL, TRUE)
-ON CONFLICT (tier_number) DO NOTHING;
+  (4, 'Conversation Cards Vol. 1', 'The original DOAC Conversation Cards deck', 4000, 'physical_product', NULL, 'CONVO1', FALSE),
+  (5, 'Conversation Cards Vol. 2', 'Deeper conversations, stronger connections', 4000, 'physical_product', NULL, 'CONVO2', FALSE),
+  (6, 'Conversation Cards: Game Edition', 'The latest edition of our bestselling cards', 4000, 'physical_product', NULL, 'CONVOGE', FALSE),
+  (7, '1% Diary', 'The iconic DOAC diary', 5000, 'physical_product', NULL, '1PERCENTDIARY', FALSE),
+  -- TIER 3: Mystery Prize (completely hidden - points TBD)
+  (8, '???', '???', 999999, 'mystery', NULL, 'MYSTERY', TRUE)
+ON CONFLICT (tier_number) DO UPDATE SET
+  reward_tier_code = EXCLUDED.reward_tier_code,
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  points_required = EXCLUDED.points_required;

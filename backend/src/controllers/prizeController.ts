@@ -3,6 +3,65 @@ import pool from '../config/database';
 import { AuthRequest, PrizeTier, PrizeTierWithStatus } from '../types';
 
 /**
+ * Klaviyo API integration for prize redemption events
+ * Sends event to Klaviyo to trigger automated email with discount code
+ */
+async function sendKlaviyoRedemptionEvent(
+  userEmail: string,
+  rewardTierCode: string,
+  discountPercentage: number | null,
+  prizeName: string
+): Promise<boolean> {
+  const klaviyoApiKey = process.env.KLAVIYO_API_KEY;
+
+  if (!klaviyoApiKey) {
+    console.error('KLAVIYO_API_KEY not configured - skipping Klaviyo event');
+    return false;
+  }
+
+  try {
+    const response = await fetch('https://a.klaviyo.com/api/events', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Klaviyo-API-Key ${klaviyoApiKey}`,
+        'Content-Type': 'application/json',
+        'revision': '2023-06-15'
+      },
+      body: JSON.stringify({
+        data: {
+          type: 'event',
+          attributes: {
+            profile: {
+              $email: userEmail
+            },
+            metric: {
+              name: 'Perks Reward Redeemed'
+            },
+            properties: {
+              reward_tier: rewardTierCode,
+              discount_percent: discountPercentage,
+              prize_name: prizeName
+            }
+          }
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Klaviyo API error:', response.status, errorText);
+      return false;
+    }
+
+    console.log(`Klaviyo event sent successfully for ${userEmail} - ${rewardTierCode}`);
+    return true;
+  } catch (error) {
+    console.error('Klaviyo API request failed:', error);
+    return false;
+  }
+}
+
+/**
  * Get all prize tiers with user's status for each
  * Returns: locked, unlocked, or claimed status plus progress percentage
  */
@@ -20,7 +79,7 @@ export const getPrizeTiers = async (req: AuthRequest, res: Response) => {
     // Get all active tiers
     const tiersResult = await pool.query(
       `SELECT id, tier_number, name, description, points_required,
-              prize_type, discount_percentage, is_mystery, is_active
+              prize_type, discount_percentage, reward_tier_code, is_mystery, is_active
        FROM prize_tiers
        WHERE is_active = true
        ORDER BY tier_number ASC`
@@ -88,12 +147,23 @@ export const getPrizeTiers = async (req: AuthRequest, res: Response) => {
 };
 
 /**
- * Claim a prize tier (assigns a discount code to the user)
- * Does NOT deduct points - prizes are rewards for reaching milestones
+ * Redeem a prize tier
+ * - Validates user has enough points
+ * - Deducts points from user's balance
+ * - Assigns discount code if applicable
+ * - Sends Klaviyo event to trigger email with coupon
+ *
+ * SECURITY: All validation happens server-side. Points are deducted atomically.
  */
 export const claimPrize = async (req: AuthRequest, res: Response) => {
   const { tierId } = req.params;
   const userId = req.user!.id;
+
+  // Validate tierId is a number
+  const tierIdNum = parseInt(tierId, 10);
+  if (isNaN(tierIdNum) || tierIdNum <= 0) {
+    return res.status(400).json({ error: 'Invalid prize tier ID' });
+  }
 
   try {
     const client = await pool.connect();
@@ -101,11 +171,26 @@ export const claimPrize = async (req: AuthRequest, res: Response) => {
     try {
       await client.query('BEGIN');
 
-      // Get tier details
+      // Lock the user row to prevent race conditions on points
+      const userResult = await client.query(
+        'SELECT id, points, email FROM users WHERE id = $1 FOR UPDATE',
+        [userId]
+      );
+
+      if (userResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const userPoints = userResult.rows[0].points;
+      const actualEmail = userResult.rows[0].email;
+
+      // Get tier details with lock
       const tierResult = await client.query(
-        `SELECT id, tier_number, name, points_required, prize_type, is_mystery, is_active
-         FROM prize_tiers WHERE id = $1`,
-        [tierId]
+        `SELECT id, tier_number, name, description, points_required, prize_type,
+                discount_percentage, reward_tier_code, is_mystery, is_active
+         FROM prize_tiers WHERE id = $1 FOR UPDATE`,
+        [tierIdNum]
       );
 
       if (tierResult.rows.length === 0) {
@@ -123,25 +208,19 @@ export const claimPrize = async (req: AuthRequest, res: Response) => {
       // Check if already claimed
       const existingClaim = await client.query(
         'SELECT id FROM user_prize_claims WHERE user_id = $1 AND tier_id = $2',
-        [userId, tierId]
+        [userId, tierIdNum]
       );
 
       if (existingClaim.rows.length > 0) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ error: 'You have already claimed this prize' });
+        return res.status(400).json({ error: 'You have already redeemed this prize' });
       }
 
-      // Get user's points
-      const userResult = await client.query(
-        'SELECT points FROM users WHERE id = $1',
-        [userId]
-      );
-      const userPoints = userResult.rows[0]?.points || 0;
-
+      // CRITICAL: Verify user has enough points
       if (userPoints < tier.points_required) {
         await client.query('ROLLBACK');
         return res.status(400).json({
-          error: 'Insufficient points to claim this prize',
+          error: 'Insufficient points to redeem this prize',
           required: tier.points_required,
           current: userPoints
         });
@@ -159,7 +238,7 @@ export const claimPrize = async (req: AuthRequest, res: Response) => {
            ORDER BY created_at ASC
            LIMIT 1
            FOR UPDATE SKIP LOCKED`,
-          [tierId]
+          [tierIdNum]
         );
 
         if (codeResult.rows.length === 0) {
@@ -182,23 +261,61 @@ export const claimPrize = async (req: AuthRequest, res: Response) => {
         );
       }
 
-      // Record the claim
+      // CRITICAL: Deduct points from user's balance
       await client.query(
-        `INSERT INTO user_prize_claims (user_id, tier_id, prize_code_id, points_at_claim)
-         VALUES ($1, $2, $3, $4)`,
-        [userId, tierId, prizeCodeId, userPoints]
+        'UPDATE users SET points = points - $1 WHERE id = $2',
+        [tier.points_required, userId]
+      );
+
+      // Record the claim with points spent
+      await client.query(
+        `INSERT INTO user_prize_claims (user_id, tier_id, prize_code_id, points_spent, points_at_claim, klaviyo_event_sent)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [userId, tierIdNum, prizeCodeId, tier.points_required, userPoints, false]
       );
 
       await client.query('COMMIT');
 
+      // Send Klaviyo event AFTER successful commit (don't rollback on Klaviyo failure)
+      let klaviyoSent = false;
+      if (tier.reward_tier_code) {
+        klaviyoSent = await sendKlaviyoRedemptionEvent(
+          actualEmail,
+          tier.reward_tier_code,
+          tier.discount_percentage,
+          tier.name
+        );
+
+        // Update klaviyo_event_sent status (non-critical, don't fail if this fails)
+        if (klaviyoSent) {
+          try {
+            await pool.query(
+              `UPDATE user_prize_claims
+               SET klaviyo_event_sent = true
+               WHERE user_id = $1 AND tier_id = $2`,
+              [userId, tierIdNum]
+            );
+          } catch (updateError) {
+            console.error('Failed to update klaviyo_event_sent:', updateError);
+          }
+        }
+      }
+
+      // Calculate new points balance
+      const newPointsBalance = userPoints - tier.points_required;
+
       res.json({
-        message: 'Prize claimed successfully!',
+        message: 'Prize redeemed successfully!',
         prize: {
           tierNumber: tier.tier_number,
           name: tier.name,
           code: assignedCode,
-          isMystery: tier.is_mystery
-        }
+          isMystery: tier.is_mystery,
+          rewardTier: tier.reward_tier_code
+        },
+        pointsSpent: tier.points_required,
+        newPointsBalance,
+        klaviyoEventSent: klaviyoSent
       });
     } catch (error) {
       await client.query('ROLLBACK');
@@ -208,7 +325,7 @@ export const claimPrize = async (req: AuthRequest, res: Response) => {
     }
   } catch (error) {
     console.error('Claim prize error:', error);
-    res.status(500).json({ error: 'Failed to claim prize' });
+    res.status(500).json({ error: 'Failed to redeem prize' });
   }
 };
 
@@ -220,8 +337,9 @@ export const getClaimedPrizes = async (req: AuthRequest, res: Response) => {
 
   try {
     const result = await pool.query(
-      `SELECT upc.id, upc.claimed_at, upc.points_at_claim,
+      `SELECT upc.id, upc.claimed_at, upc.points_at_claim, upc.points_spent,
               pt.tier_number, pt.name, pt.description, pt.prize_type, pt.is_mystery,
+              pt.reward_tier_code,
               pc.code, pc.expires_at, pc.is_used
        FROM user_prize_claims upc
        JOIN prize_tiers pt ON upc.tier_id = pt.id
@@ -239,11 +357,13 @@ export const getClaimedPrizes = async (req: AuthRequest, res: Response) => {
         description: claim.description,
         prizeType: claim.prize_type,
         isMystery: claim.is_mystery,
+        rewardTier: claim.reward_tier_code,
         code: claim.code,
         expiresAt: claim.expires_at,
         isUsed: claim.is_used,
         claimedAt: claim.claimed_at,
-        pointsAtClaim: claim.points_at_claim
+        pointsAtClaim: claim.points_at_claim,
+        pointsSpent: claim.points_spent
       }))
     });
   } catch (error) {
