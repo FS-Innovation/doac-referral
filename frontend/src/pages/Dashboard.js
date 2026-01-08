@@ -1293,7 +1293,7 @@ const Dashboard = () => {
               const isMystery = prize.is_mystery;
               const isLocked = prize.status === 'locked';
               const isUnlocked = prize.status === 'unlocked';
-              const isClaimed = prize.status === 'claimed';
+              const hasClaimedBefore = prize.has_claimed_before;
               const isClaiming = claimingTier === prize.id;
               const isActive = index === activeCard;
               const isHovered = hoveredCard === index;
@@ -1476,13 +1476,15 @@ const Dashboard = () => {
                     {/* Progress Bar - hidden for mystery */}
                     {!isMystery && (
                       <div style={{
-                        background: 'rgba(255, 255, 255, 0.1)',
+                        background: 'rgba(255, 255, 255, 0.08)',
                         borderRadius: '100px',
-                        height: '4px',
+                        height: '2px',
                         overflow: 'hidden'
                       }}>
                         <div style={{
-                          background: isClaimed ? '#22c55e' : '#FFF',
+                          background: prize.progress >= 100
+                            ? 'linear-gradient(90deg, rgba(255,255,255,0.8) 0%, #FFF 50%, rgba(255,255,255,0.8) 100%)'
+                            : 'rgba(255, 255, 255, 0.5)',
                           height: '100%',
                           width: `${prize.progress}%`,
                           borderRadius: '100px',
@@ -1493,12 +1495,12 @@ const Dashboard = () => {
 
                     {/* Points needed or status */}
                     <div style={{
-                      color: isClaimed ? '#22c55e' : isUnlocked ? '#FFF' : 'rgba(255, 255, 255, 0.5)',
+                      color: isUnlocked ? '#FFF' : 'rgba(255, 255, 255, 0.5)',
                       fontSize: isMobile ? '0.7rem' : '0.75rem',
                       fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
                       textAlign: 'center'
                     }}>
-                      {isClaimed ? 'Claimed' : isUnlocked ? 'Available to claim' : isMystery ? (
+                      {isMystery ? (
                         <span style={{
                           filter: 'blur(3.5px)',
                           userSelect: 'none',
@@ -1509,8 +1511,21 @@ const Dashboard = () => {
                       ) : `${prize.points_required.toLocaleString()} pts`}
                     </div>
 
-                    {/* Luxury Redeem button for unlocked prizes */}
-                    {isUnlocked && !isClaimed && (
+                    {/* Redeemed before indicator */}
+                    {hasClaimedBefore && (
+                      <div style={{
+                        color: 'rgba(255, 255, 255, 0.4)',
+                        fontSize: isMobile ? '0.65rem' : '0.7rem',
+                        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                        textAlign: 'center',
+                        fontStyle: 'italic'
+                      }}>
+                        Redeemed before
+                      </div>
+                    )}
+
+                    {/* Luxury Redeem button for unlocked prizes - static gold, shimmer on hover */}
+                    {isUnlocked && (
                       <button
                         onClick={(e) => { e.stopPropagation(); handleClaimPrize(prize); }}
                         disabled={isClaiming}
@@ -1521,7 +1536,6 @@ const Dashboard = () => {
                             ? '#333'
                             : 'linear-gradient(135deg, #FFD700 0%, #FFA500 25%, #FFD700 50%, #FFA500 75%, #FFD700 100%)',
                           backgroundSize: '200% 200%',
-                          animation: isClaiming ? 'none' : 'shimmer 3s ease-in-out infinite',
                           color: '#000',
                           border: 'none',
                           padding: isMobile ? '12px' : '14px',
@@ -1531,9 +1545,6 @@ const Dashboard = () => {
                           fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
                           cursor: isClaiming ? 'wait' : 'pointer',
                           transition: 'all 0.3s ease',
-                          boxShadow: isClaiming
-                            ? 'none'
-                            : '0 4px 15px rgba(255, 215, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
                           textTransform: 'uppercase',
                           letterSpacing: '0.05em',
                           position: 'relative',
@@ -1541,35 +1552,19 @@ const Dashboard = () => {
                         }}
                         onMouseEnter={(e) => {
                           if (!isClaiming) {
-                            e.currentTarget.style.transform = 'scale(1.02)';
-                            e.currentTarget.style.boxShadow = '0 6px 25px rgba(255, 215, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4)';
+                            e.currentTarget.style.transform = 'scale(1.03)';
+                            e.currentTarget.style.animation = 'shimmer 1.5s ease-in-out infinite';
                           }
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.transform = 'scale(1)';
-                          e.currentTarget.style.boxShadow = '0 4px 15px rgba(255, 215, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3)';
+                          e.currentTarget.style.animation = 'none';
                         }}
                       >
                         {isClaiming ? 'Redeeming...' : 'Redeem'}
                       </button>
                     )}
 
-                    {/* Show claimed code */}
-                    {isClaimed && prize.claimed_code && (
-                      <code style={{
-                        background: 'rgba(34, 197, 94, 0.1)',
-                        border: '1px solid rgba(34, 197, 94, 0.3)',
-                        borderRadius: '6px',
-                        padding: '8px',
-                        color: '#22c55e',
-                        fontSize: isMobile ? '0.75rem' : '0.8rem',
-                        fontWeight: '600',
-                        textAlign: 'center',
-                        display: 'block'
-                      }}>
-                        {prize.claimed_code}
-                      </code>
-                    )}
                   </div>
                 </div>
               );
@@ -1658,181 +1653,179 @@ const Dashboard = () => {
         </div>
 
         {/* Confirmation Modal - Before Redeeming */}
-        {confirmRedeemPrize && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.85)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '20px',
-            backdropFilter: 'blur(8px)'
-          }} onClick={handleCancelRedeem}>
+        {confirmRedeemPrize && (() => {
+          // Get the prize image for the modal
+          const getPrizeImage = () => {
+            if (confirmRedeemPrize.prize_type === 'discount_code') {
+              return 'https://thediary.com/cdn/shop/files/1_DIARY_PopUpCardsWhite.png?v=1764327518&width=800';
+            }
+            if (confirmRedeemPrize.name.includes('Vol. 1') || confirmRedeemPrize.name.includes('Vol 1')) {
+              return 'https://thediary.com/cdn/shop/files/1_e87b669d-04ab-4f85-81c8-df353bbb2188.png?v=1749210128&width=700';
+            }
+            if (confirmRedeemPrize.name.includes('Vol. 2') || confirmRedeemPrize.name.includes('Vol 2')) {
+              return 'https://thediary.com/cdn/shop/files/1_b75fbc90-9bfe-49f2-baf5-3767c7992627.png?v=1762444332&width=700';
+            }
+            if (confirmRedeemPrize.name.includes('Game Edition') || confirmRedeemPrize.name.includes('Vol. 3')) {
+              return 'https://thediary.com/cdn/shop/files/CC3_Web_Image_3.jpg?v=1762859458&width=700';
+            }
+            if (confirmRedeemPrize.name.includes('1% Diary') || confirmRedeemPrize.name.includes('Diary')) {
+              return 'https://thediary.com/cdn/shop/files/No_matter_your_goal_1_d1605690-ab79-45f3-a83d-f9d21e8223bc.png?v=1763725505&width=1000';
+            }
+            if (confirmRedeemPrize.prize_type === 'mystery') {
+              return 'https://storage.googleapis.com/doac-perks/edited-photo.webp';
+            }
+            return 'https://thediary.com/cdn/shop/files/1_DIARY_PopUpCardsWhite.png?v=1764327518&width=800';
+          };
+
+          return (
             <div style={{
-              background: 'linear-gradient(180deg, #1a1a1a 0%, #0d0d0d 100%)',
-              borderRadius: '24px',
-              padding: isMobile ? '28px 24px' : '36px 40px',
-              maxWidth: '440px',
-              width: '100%',
-              textAlign: 'center',
-              border: '1px solid rgba(255, 215, 0, 0.3)',
-              boxShadow: '0 0 60px rgba(255, 215, 0, 0.15), 0 25px 50px rgba(0, 0, 0, 0.5)',
-              animation: 'pulse-glow 2s ease-in-out infinite'
-            }} onClick={e => e.stopPropagation()}>
-              {/* Trophy/Gift Icon */}
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+              padding: '20px',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)'
+            }} onClick={handleCancelRedeem}>
               <div style={{
-                width: '80px',
-                height: '80px',
-                margin: '0 auto 20px',
-                background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 4px 20px rgba(255, 215, 0, 0.4)'
-              }}>
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 12v10H4V12"></path>
-                  <path d="M2 7h20v5H2z"></path>
-                  <path d="M12 22V7"></path>
-                  <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path>
-                  <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path>
-                </svg>
-              </div>
+                background: '#000',
+                borderRadius: '16px',
+                width: isMobile ? '260px' : '320px',
+                overflow: 'hidden',
+                border: '2px solid rgba(255, 190, 80, 0.9)',
+                boxShadow: `
+                  0 0 12px 4px rgba(255, 190, 80, 0.7),
+                  0 0 25px 8px rgba(255, 170, 50, 0.45),
+                  0 0 40px 15px rgba(255, 150, 30, 0.25),
+                  0 0 60px 25px rgba(200, 120, 20, 0.1)
+                `,
+                position: 'relative'
+              }} onClick={e => e.stopPropagation()}>
 
-              <h2 style={{
-                color: '#FFF',
-                margin: '0 0 12px 0',
-                fontSize: isMobile ? '1.4rem' : '1.6rem',
-                fontWeight: '600',
-                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif'
-              }}>
-                Redeem Prize?
-              </h2>
-
-              <p style={{
-                color: '#B5B5B5',
-                margin: '0 0 24px 0',
-                fontSize: isMobile ? '0.95rem' : '1rem',
-                lineHeight: '1.5'
-              }}>
-                Are you sure you want to redeem<br />
-                <span style={{ color: '#FFD700', fontWeight: '600' }}>
-                  {confirmRedeemPrize.name}
-                </span>?
-              </p>
-
-              {/* Points Cost Box */}
-              <div style={{
-                background: 'rgba(255, 215, 0, 0.1)',
-                border: '1px solid rgba(255, 215, 0, 0.3)',
-                borderRadius: '12px',
-                padding: '16px 20px',
-                marginBottom: '28px'
-              }}>
+                {/* Prize Image - Square like carousel cards */}
                 <div style={{
-                  color: '#888',
-                  fontSize: '0.8rem',
-                  marginBottom: '6px',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em'
+                  width: '100%',
+                  aspectRatio: '1',
+                  overflow: 'hidden',
+                  position: 'relative',
+                  background: '#000'
                 }}>
-                  Points Required
+                  <img
+                    src={getPrizeImage()}
+                    alt={confirmRedeemPrize.name}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover'
+                    }}
+                  />
+                  <div style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: '80px',
+                    background: 'linear-gradient(transparent, #000)'
+                  }} />
                 </div>
-                <div style={{
-                  color: '#FFD700',
-                  fontSize: '1.75rem',
-                  fontWeight: '700',
-                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif'
-                }}>
-                  {confirmRedeemPrize.points_required.toLocaleString()} pts
-                </div>
-                <div style={{
-                  color: '#666',
-                  fontSize: '0.8rem',
-                  marginTop: '8px'
-                }}>
-                  This will be deducted from your balance
-                </div>
-              </div>
 
-              {/* Action Buttons */}
-              <div style={{
-                display: 'flex',
-                gap: '12px',
-                flexDirection: isMobile ? 'column' : 'row'
-              }}>
-                <button
-                  onClick={handleCancelRedeem}
-                  style={{
-                    flex: 1,
-                    background: 'transparent',
-                    color: '#888',
-                    border: '1px solid #333',
-                    padding: '14px 24px',
-                    borderRadius: '10px',
-                    fontSize: '1rem',
+                {/* Content */}
+                <div style={{
+                  padding: isMobile ? '16px 20px 24px' : '20px 24px 28px',
+                  textAlign: 'center'
+                }}>
+                  <h3 style={{
+                    color: '#FFF',
+                    margin: '0 0 6px 0',
+                    fontSize: isMobile ? '0.95rem' : '1.05rem',
                     fontWeight: '500',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
                     fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                    e.currentTarget.style.borderColor = '#555';
-                    e.currentTarget.style.color = '#FFF';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.borderColor = '#333';
-                    e.currentTarget.style.color = '#888';
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmRedeem}
-                  disabled={claimingTier}
-                  style={{
-                    flex: 1,
-                    background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 50%, #FFD700 100%)',
-                    backgroundSize: '200% 200%',
-                    animation: 'shimmer 2s ease-in-out infinite',
-                    color: '#000',
-                    border: 'none',
-                    padding: '14px 24px',
-                    borderRadius: '10px',
-                    fontSize: '1rem',
-                    fontWeight: '700',
-                    cursor: claimingTier ? 'wait' : 'pointer',
-                    transition: 'all 0.2s ease',
-                    boxShadow: '0 4px 20px rgba(255, 215, 0, 0.4)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
+                  }}>
+                    {confirmRedeemPrize.name}
+                  </h3>
+
+                  <p style={{
+                    color: 'rgba(255, 255, 255, 0.5)',
+                    margin: '0 0 16px 0',
+                    fontSize: isMobile ? '0.75rem' : '0.8rem',
+                    lineHeight: '1.4',
                     fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!claimingTier) {
-                      e.currentTarget.style.transform = 'scale(1.02)';
-                      e.currentTarget.style.boxShadow = '0 6px 30px rgba(255, 215, 0, 0.6)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'scale(1)';
-                    e.currentTarget.style.boxShadow = '0 4px 20px rgba(255, 215, 0, 0.4)';
-                  }}
-                >
-                  {claimingTier ? 'Redeeming...' : 'Yes, Redeem!'}
-                </button>
+                  }}>
+                    Are you sure? This will use <span style={{ color: '#FFF' }}>{confirmRedeemPrize.points_required.toLocaleString()} pts</span>
+                  </p>
+
+                  {/* Gold Redeem Button - bright gold static, shimmer on hover */}
+                  <button
+                    onClick={handleConfirmRedeem}
+                    disabled={claimingTier}
+                    className="gold-button-hover"
+                    style={{
+                      width: '100%',
+                      background: claimingTier
+                        ? '#333'
+                        : 'linear-gradient(135deg, #FFD700 0%, #FFA500 25%, #FFD700 50%, #FFA500 75%, #FFD700 100%)',
+                      backgroundSize: '200% 200%',
+                      color: '#000',
+                      border: 'none',
+                      padding: isMobile ? '14px' : '16px',
+                      borderRadius: '10px',
+                      fontSize: isMobile ? '0.9rem' : '0.95rem',
+                      fontWeight: '700',
+                      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                      cursor: claimingTier ? 'wait' : 'pointer',
+                      transition: 'all 0.3s ease',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      marginBottom: '12px'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!claimingTier) {
+                        e.currentTarget.style.transform = 'scale(1.03)';
+                        e.currentTarget.style.animation = 'shimmer 1.5s ease-in-out infinite';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)';
+                      e.currentTarget.style.animation = 'none';
+                    }}
+                  >
+                    {claimingTier ? 'Redeeming...' : 'Yes, continue'}
+                  </button>
+
+                  {/* Cancel link */}
+                  <button
+                    onClick={handleCancelRedeem}
+                    style={{
+                      background: 'transparent',
+                      color: 'rgba(255, 255, 255, 0.4)',
+                      border: 'none',
+                      padding: '8px',
+                      fontSize: '0.8rem',
+                      fontWeight: '400',
+                      cursor: 'pointer',
+                      transition: 'color 0.2s ease',
+                      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = 'rgba(255, 255, 255, 0.4)';
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Claim Success Modal */}
         {selectedPrize && claimSuccess && (
@@ -1842,69 +1835,91 @@ const Dashboard = () => {
             left: 0,
             right: 0,
             bottom: 0,
-            background: 'rgba(0, 0, 0, 0.8)',
+            background: 'rgba(0, 0, 0, 0.4)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 1000,
-            padding: '20px'
+            padding: '20px',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)'
           }} onClick={() => { setSelectedPrize(null); setClaimSuccess(null); }}>
+            {/* Pulsing glow */}
             <div style={{
-              background: '#1a1a1a',
-              borderRadius: '20px',
-              padding: '32px',
-              maxWidth: '400px',
+              position: 'absolute',
+              width: isMobile ? '380px' : '450px',
+              height: isMobile ? '450px' : '500px',
+              borderRadius: '50%',
+              background: 'radial-gradient(ellipse at center, rgba(255, 215, 0, 0.15) 0%, rgba(255, 215, 0, 0.05) 40%, transparent 70%)',
+              filter: 'blur(50px)',
+              animation: 'modal-pulse 2s ease-in-out infinite',
+              pointerEvents: 'none'
+            }} />
+            <div style={{
+              background: '#000',
+              borderRadius: '16px',
+              padding: '28px',
+              maxWidth: '340px',
               width: '100%',
               textAlign: 'center',
-              border: '1px solid rgba(147, 51, 234, 0.3)',
-              boxShadow: '0 0 60px rgba(147, 51, 234, 0.3)'
+              border: '1px solid transparent',
+              backgroundImage: 'linear-gradient(#000, #000), linear-gradient(135deg, #FFF 0%, #5A2F30 100%)',
+              backgroundOrigin: 'border-box',
+              backgroundClip: 'padding-box, border-box',
+              boxShadow: '0 0 60px rgba(255, 255, 255, 0.1)',
+              position: 'relative',
+              zIndex: 1
             }} onClick={e => e.stopPropagation()}>
-              <div style={{ fontSize: '4rem', marginBottom: '16px' }}>🎉</div>
-              <h2 style={{ color: '#FFF', margin: '0 0 8px 0', fontSize: '1.5rem' }}>
-                Prize Claimed!
+              <h2 style={{ color: '#FFF', margin: '0 0 8px 0', fontSize: '1.3rem', fontWeight: '500' }}>
+                Prize Redeemed
               </h2>
-              <p style={{ color: '#B5B5B5', margin: '0 0 24px 0' }}>
-                {selectedPrize.is_mystery ? 'You unlocked the mystery prize!' : `You've claimed your ${selectedPrize.name}!`}
+              <p style={{ color: 'rgba(255, 255, 255, 0.5)', margin: '0 0 20px 0', fontSize: '0.9rem' }}>
+                {selectedPrize.is_mystery ? 'Mystery prize unlocked!' : selectedPrize.name}
               </p>
               {selectedPrize.claimedCode && (
                 <div style={{
-                  background: 'rgba(34, 197, 94, 0.1)',
-                  border: '1px solid rgba(34, 197, 94, 0.3)',
-                  borderRadius: '12px',
-                  padding: '20px',
-                  marginBottom: '24px'
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '10px',
+                  padding: '16px',
+                  marginBottom: '20px'
                 }}>
-                  <div style={{ color: '#888', fontSize: '0.875rem', marginBottom: '8px' }}>
-                    Your discount code:
+                  <div style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '0.75rem', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Your code
                   </div>
                   <code style={{
-                    color: '#22c55e',
-                    fontSize: '1.5rem',
+                    color: '#FFD700',
+                    fontSize: '1.3rem',
                     fontWeight: '700',
                     letterSpacing: '0.1em',
-                    display: 'block'
+                    display: 'block',
+                    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif'
                   }}>
                     {selectedPrize.claimedCode}
                   </code>
-                  <div style={{ color: '#666', fontSize: '0.75rem', marginTop: '8px' }}>
-                    Use this at checkout on our Shopify store
-                  </div>
                 </div>
               )}
+              <p style={{ color: 'rgba(255, 255, 255, 0.4)', margin: '0 0 20px 0', fontSize: '0.8rem' }}>
+                Check your email for redemption details
+              </p>
               <button
                 onClick={() => { setSelectedPrize(null); setClaimSuccess(null); }}
                 style={{
-                  background: '#FFF',
+                  background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 25%, #FFD700 50%, #FFA500 75%, #FFD700 100%)',
+                  backgroundSize: '200% 200%',
                   color: '#000',
                   border: 'none',
-                  padding: '12px 32px',
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  fontWeight: '600',
-                  cursor: 'pointer'
+                  padding: '14px 32px',
+                  borderRadius: '10px',
+                  fontSize: '0.95rem',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  width: '100%'
                 }}
               >
-                Awesome!
+                Done
               </button>
             </div>
           </div>
@@ -1928,6 +1943,22 @@ const Dashboard = () => {
           @keyframes pulse-glow {
             0%, 100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.4); }
             50% { box-shadow: 0 0 40px rgba(255, 215, 0, 0.8); }
+          }
+          @keyframes glow-breathe {
+            0%, 100% { opacity: 0.6; transform: scale(0.95); }
+            50% { opacity: 1; transform: scale(1.05); }
+          }
+          @keyframes glow-pulse {
+            0%, 100% { opacity: 0.7; transform: scale(0.92); }
+            50% { opacity: 1; transform: scale(1.08); }
+          }
+          @keyframes glow-core {
+            0%, 100% { opacity: 0.8; transform: scale(0.96); }
+            50% { opacity: 1; transform: scale(1.04); }
+          }
+          @keyframes modal-pulse {
+            0%, 100% { opacity: 0.5; transform: scale(0.92); }
+            50% { opacity: 1; transform: scale(1.1); }
           }
           @keyframes sparkle {
             0%, 100% { opacity: 0; transform: scale(0); }

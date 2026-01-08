@@ -85,11 +85,12 @@ export const getPrizeTiers = async (req: AuthRequest, res: Response) => {
        ORDER BY tier_number ASC`
     );
 
-    // Get user's claims
+    // Get user's claims (check if they've EVER claimed each tier)
     const claimsResult = await pool.query(
-      `SELECT upc.tier_id, upc.claimed_at, pc.code
+      `SELECT DISTINCT tier_id,
+              (SELECT claimed_at FROM user_prize_claims WHERE user_id = $1 AND tier_id = upc.tier_id ORDER BY claimed_at DESC LIMIT 1) as last_claimed_at,
+              (SELECT COUNT(*) FROM user_prize_claims WHERE user_id = $1 AND tier_id = upc.tier_id) as claim_count
        FROM user_prize_claims upc
-       LEFT JOIN prize_codes pc ON upc.prize_code_id = pc.id
        WHERE upc.user_id = $1`,
       [userId]
     );
@@ -97,19 +98,21 @@ export const getPrizeTiers = async (req: AuthRequest, res: Response) => {
     const claimsMap = new Map(
       claimsResult.rows.map(claim => [
         claim.tier_id,
-        { claimed_at: claim.claimed_at, code: claim.code }
+        { last_claimed_at: claim.last_claimed_at, claim_count: parseInt(claim.claim_count) }
       ])
     );
 
     // Build response with status for each tier
+    // Status is based on CURRENT points, not claim history
+    // Users can redeem the same prize multiple times
     const tiersWithStatus: PrizeTierWithStatus[] = tiersResult.rows.map((tier: PrizeTier) => {
-      const claim = claimsMap.get(tier.id);
+      const claimHistory = claimsMap.get(tier.id);
       const progress = Math.min(100, Math.round((userPoints / tier.points_required) * 100));
+      const hasClaimedBefore = claimHistory && claimHistory.claim_count > 0;
 
+      // Status based on current points only (not claim history)
       let status: 'locked' | 'unlocked' | 'claimed';
-      if (claim) {
-        status = 'claimed';
-      } else if (userPoints >= tier.points_required) {
+      if (userPoints >= tier.points_required) {
         status = 'unlocked';
       } else {
         status = 'locked';
@@ -127,12 +130,13 @@ export const getPrizeTiers = async (req: AuthRequest, res: Response) => {
         description: displayDescription,
         status,
         progress,
-        claimed_code: claim?.code,
-        claimed_at: claim?.claimed_at
+        has_claimed_before: hasClaimedBefore || false,
+        claim_count: claimHistory?.claim_count || 0,
+        last_claimed_at: claimHistory?.last_claimed_at
       };
     });
 
-    // Count eligible (unlocked but not claimed) prizes
+    // Count eligible (unlocked) prizes
     const eligibleCount = tiersWithStatus.filter(t => t.status === 'unlocked').length;
 
     res.json({
@@ -205,16 +209,8 @@ export const claimPrize = async (req: AuthRequest, res: Response) => {
         return res.status(400).json({ error: 'This prize tier is no longer available' });
       }
 
-      // Check if already claimed
-      const existingClaim = await client.query(
-        'SELECT id FROM user_prize_claims WHERE user_id = $1 AND tier_id = $2',
-        [userId, tierIdNum]
-      );
-
-      if (existingClaim.rows.length > 0) {
-        await client.query('ROLLBACK');
-        return res.status(400).json({ error: 'You have already redeemed this prize' });
-      }
+      // Users CAN redeem the same prize multiple times if they have enough points
+      // No check for existing claims - that's intentional!
 
       // CRITICAL: Verify user has enough points
       if (userPoints < tier.points_required) {

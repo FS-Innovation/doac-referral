@@ -82,8 +82,9 @@ export interface UserPrizeClaim {
 }
 
 export interface PrizeTierWithStatus extends PrizeTier {
-  status: 'locked' | 'unlocked' | 'claimed';
+  status: 'locked' | 'unlocked';
   progress: number; // 0-100 percentage
-  claimed_code?: string; // The code if claimed
-  claimed_at?: Date;
+  has_claimed_before: boolean; // Whether user has ever redeemed this prize
+  claim_count: number; // Number of times user has redeemed this prize
+  last_claimed_at?: Date; // When they last claimed it
 }
