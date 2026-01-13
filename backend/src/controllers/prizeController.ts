@@ -222,40 +222,9 @@ export const claimPrize = async (req: AuthRequest, res: Response) => {
         });
       }
 
-      // For discount code prizes, assign an available code
-      let assignedCode = null;
-      let prizeCodeId = null;
-
-      if (tier.prize_type === 'discount_code' || tier.prize_type === 'mystery') {
-        // Find an unclaimed code for this tier
-        const codeResult = await client.query(
-          `SELECT id, code FROM prize_codes
-           WHERE tier_id = $1 AND claimed_by IS NULL
-           ORDER BY created_at ASC
-           LIMIT 1
-           FOR UPDATE SKIP LOCKED`,
-          [tierIdNum]
-        );
-
-        if (codeResult.rows.length === 0) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({
-            error: 'No codes available for this prize. Please contact support.'
-          });
-        }
-
-        const prizeCode = codeResult.rows[0];
-        prizeCodeId = prizeCode.id;
-        assignedCode = prizeCode.code;
-
-        // Mark code as claimed
-        await client.query(
-          `UPDATE prize_codes
-           SET claimed_by = $1, claimed_at = CURRENT_TIMESTAMP
-           WHERE id = $2`,
-          [userId, prizeCodeId]
-        );
-      }
+      // Note: Discount codes are handled by Klaviyo automation
+      // We just send the reward tier event and Klaviyo sends the coupon
+      const prizeCodeId = null;
 
       // CRITICAL: Deduct points from user's balance
       await client.query(
@@ -301,11 +270,10 @@ export const claimPrize = async (req: AuthRequest, res: Response) => {
       const newPointsBalance = userPoints - tier.points_required;
 
       res.json({
-        message: 'Prize redeemed successfully!',
+        message: 'Prize redeemed successfully! Check your email for your reward.',
         prize: {
           tierNumber: tier.tier_number,
           name: tier.name,
-          code: assignedCode,
           isMystery: tier.is_mystery,
           rewardTier: tier.reward_tier_code
         },

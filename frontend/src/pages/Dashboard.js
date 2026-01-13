@@ -1226,7 +1226,7 @@ const Dashboard = () => {
         <div style={{
           position: 'relative',
           width: '100%',
-          height: isMobile ? '380px' : '480px',
+          height: isMobile ? '440px' : '560px',
           overflow: 'hidden'
         }}>
           {/* Left edge bloom glow - visible when cards extend past left edge */}
@@ -1315,8 +1315,8 @@ const Dashboard = () => {
                 if (prize.name.includes('Vol. 2') || prize.name.includes('Vol 2')) {
                   return 'https://thediary.com/cdn/shop/files/1_b75fbc90-9bfe-49f2-baf5-3767c7992627.png?v=1762444332&width=700';
                 }
-                if (prize.name.includes('Vol. 3') || prize.name.includes('Vol 3')) {
-                  return 'https://thediary.com/cdn/shop/files/CC3_Web_Image_3.jpg?v=1762859458&width=700';
+                if (prize.name.includes('Vol. 3') || prize.name.includes('Vol 3') || prize.name.includes('Game Edition')) {
+                  return 'https://thediary.com/cdn/shop/files/CC3_Web_Image_3.jpg?v=1762859458&width=1000';
                 }
                 if (prize.name.includes('1% Diary') || prize.name.includes('Diary')) {
                   return 'https://thediary.com/cdn/shop/files/No_matter_your_goal_1_d1605690-ab79-45f3-a83d-f9d21e8223bc.png?v=1763725505&width=1000';
@@ -1334,6 +1334,8 @@ const Dashboard = () => {
                   onMouseLeave={() => setHoveredCard(null)}
                   style={{
                     position: 'absolute',
+                    top: '50%',
+                    left: '50%',
                     width: isMobile ? '200px' : '300px',
                     background: '#000',
                     border: '1px solid transparent',
@@ -1349,7 +1351,7 @@ const Dashboard = () => {
                     boxShadow: isActive
                       ? '0 20px 60px rgba(0, 0, 0, 0.6)'
                       : '0 10px 30px rgba(0, 0, 0, 0.4)',
-                    transform: `translateX(${xOffset}px) translateZ(${zOffset}px) rotateY(${rotation}deg) scale(${scale})`,
+                    transform: `translate(-50%, -50%) translateX(${xOffset}px) translateZ(${zOffset}px) rotateY(${rotation}deg) scale(${scale})`,
                     transition: isDragging ? 'none' : 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
                     cursor: 'pointer',
                     zIndex: prizes.length - Math.abs(offset),
@@ -1666,7 +1668,7 @@ const Dashboard = () => {
               return 'https://thediary.com/cdn/shop/files/1_b75fbc90-9bfe-49f2-baf5-3767c7992627.png?v=1762444332&width=700';
             }
             if (confirmRedeemPrize.name.includes('Game Edition') || confirmRedeemPrize.name.includes('Vol. 3')) {
-              return 'https://thediary.com/cdn/shop/files/CC3_Web_Image_3.jpg?v=1762859458&width=700';
+              return 'https://thediary.com/cdn/shop/files/CC3_Web_Image_3.jpg?v=1762859458&width=1000';
             }
             if (confirmRedeemPrize.name.includes('1% Diary') || confirmRedeemPrize.name.includes('Diary')) {
               return 'https://thediary.com/cdn/shop/files/No_matter_your_goal_1_d1605690-ab79-45f3-a83d-f9d21e8223bc.png?v=1763725505&width=1000';
@@ -1966,6 +1968,77 @@ const Dashboard = () => {
           }
         `}</style>
       </div>
+
+      {/* Footer */}
+      <footer style={{
+        padding: isMobile ? '24px 16px 32px' : '20px 40px',
+        marginTop: isMobile ? '2rem' : '3rem',
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        justifyContent: isMobile ? 'center' : 'space-between',
+        alignItems: 'center',
+        gap: isMobile ? '16px' : '0'
+      }}>
+        {!isMobile && (
+          <span style={{
+            color: 'rgba(255, 255, 255, 0.55)',
+            fontSize: '0.75rem',
+            fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+            letterSpacing: '0.02em'
+          }}>
+            © 2026, The Diary.
+          </span>
+        )}
+        <div style={{
+          display: 'flex',
+          gap: '20px'
+        }}>
+          <a
+            href="https://thediary.com/policies/terms-of-service"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: 'rgba(255, 255, 255, 0.55)',
+              fontSize: '0.75rem',
+              fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+              textDecoration: 'none',
+              letterSpacing: '0.02em',
+              transition: 'color 0.2s ease'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.85)'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.55)'}
+          >
+            Terms
+          </a>
+          <a
+            href="https://thediary.com/policies/privacy-policy"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: 'rgba(255, 255, 255, 0.55)',
+              fontSize: '0.75rem',
+              fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+              textDecoration: 'none',
+              letterSpacing: '0.02em',
+              transition: 'color 0.2s ease'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.85)'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.55)'}
+          >
+            Privacy
+          </a>
+        </div>
+        {isMobile && (
+          <span style={{
+            color: 'rgba(255, 255, 255, 0.5)',
+            fontSize: '0.6875rem',
+            fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+            letterSpacing: '0.02em'
+          }}>
+            © 2026, The Diary.
+          </span>
+        )}
+      </footer>
     </>
   );
 };

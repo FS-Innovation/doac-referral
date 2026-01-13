@@ -436,6 +436,25 @@ const ReferralLanding = () => {
             </div>
           </div>
         )}
+
+        {/* Subtle CTA to join */}
+        <a
+          href="/register"
+          style={{
+            display: 'block',
+            marginTop: '32px',
+            textAlign: 'center',
+            color: 'rgba(255, 255, 255, 0.5)',
+            fontSize: '0.8125rem',
+            textDecoration: 'none',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+            transition: 'color 0.2s ease'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.8)'}
+          onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'}
+        >
+          Want to earn rewards sharing DOAC? <span style={{ textDecoration: 'underline' }}>Get your own link</span>
+        </a>
         </div>
       </div>
     </div>
