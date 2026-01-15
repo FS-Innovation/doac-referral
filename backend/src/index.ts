@@ -6,7 +6,7 @@ import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/user';
-import productRoutes from './routes/product';
+// Product routes removed - replaced by prize system (tables dropped in migration 012)
 import referralRoutes from './routes/referral';
 import adminRoutes from './routes/admin';
 import episodesRoutes from './routes/episodes';
@@ -77,7 +77,7 @@ app.get('/', (_req, res) => {
 // Note: Auth routes have endpoint-specific rate limiting (login vs register)
 app.use('/api/auth', authRoutes);
 app.use('/api/user', generalLimiter, userRoutes);
-app.use('/api/products', generalLimiter, productRoutes);
+// app.use('/api/products', generalLimiter, productRoutes); // Removed - replaced by /api/prizes
 app.use('/api/referral', referralRoutes); // Has its own specific rate limiting
 app.use('/api/admin', adminLimiter, adminRoutes);
 app.use('/api/episodes', generalLimiter, episodesRoutes);

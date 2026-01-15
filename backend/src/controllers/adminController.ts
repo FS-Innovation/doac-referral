@@ -3,129 +3,7 @@ import pool from '../config/database';
 import { AuthRequest } from '../types';
 import { updateAllPlatformLinks } from '../services/latestEpisodeService';
 
-// Product Management
-export const createProduct = async (req: AuthRequest, res: Response) => {
-  const { name, description, pointCost, imageUrl } = req.body;
-
-  try {
-    if (!name || !pointCost) {
-      return res.status(400).json({ error: 'Name and point cost are required' });
-    }
-
-    const result = await pool.query(
-      `INSERT INTO products (name, description, point_cost, image_url)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, name, description, point_cost, image_url, is_active, created_at`,
-      [name, description, pointCost, imageUrl || null]
-    );
-
-    const product = result.rows[0];
-
-    res.status(201).json({
-      message: 'Product created successfully',
-      product: {
-        id: product.id,
-        name: product.name,
-        description: product.description,
-        pointCost: product.point_cost,
-        imageUrl: product.image_url,
-        isActive: product.is_active,
-        createdAt: product.created_at
-      }
-    });
-  } catch (error) {
-    console.error('Create product error:', error);
-    res.status(500).json({ error: 'Failed to create product' });
-  }
-};
-
-export const updateProduct = async (req: AuthRequest, res: Response) => {
-  const { id } = req.params;
-  const { name, description, pointCost, imageUrl, isActive } = req.body;
-
-  try {
-    const result = await pool.query(
-      `UPDATE products
-       SET name = COALESCE($1, name),
-           description = COALESCE($2, description),
-           point_cost = COALESCE($3, point_cost),
-           image_url = COALESCE($4, image_url),
-           is_active = COALESCE($5, is_active),
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $6
-       RETURNING id, name, description, point_cost, image_url, is_active, updated_at`,
-      [name, description, pointCost, imageUrl, isActive, id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Product not found' });
-    }
-
-    const product = result.rows[0];
-
-    res.json({
-      message: 'Product updated successfully',
-      product: {
-        id: product.id,
-        name: product.name,
-        description: product.description,
-        pointCost: product.point_cost,
-        imageUrl: product.image_url,
-        isActive: product.is_active,
-        updatedAt: product.updated_at
-      }
-    });
-  } catch (error) {
-    console.error('Update product error:', error);
-    res.status(500).json({ error: 'Failed to update product' });
-  }
-};
-
-export const deleteProduct = async (req: AuthRequest, res: Response) => {
-  const { id } = req.params;
-
-  try {
-    const result = await pool.query(
-      'DELETE FROM products WHERE id = $1 RETURNING id',
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Product not found' });
-    }
-
-    res.json({ message: 'Product deleted successfully' });
-  } catch (error) {
-    console.error('Delete product error:', error);
-    res.status(500).json({ error: 'Failed to delete product' });
-  }
-};
-
-export const getAllProductsAdmin = async (req: AuthRequest, res: Response) => {
-  try {
-    const result = await pool.query(
-      `SELECT id, name, description, point_cost, image_url, is_active, created_at, updated_at
-       FROM products
-       ORDER BY created_at DESC`
-    );
-
-    res.json({
-      products: result.rows.map(product => ({
-        id: product.id,
-        name: product.name,
-        description: product.description,
-        pointCost: product.point_cost,
-        imageUrl: product.image_url,
-        isActive: product.is_active,
-        createdAt: product.created_at,
-        updatedAt: product.updated_at
-      }))
-    });
-  } catch (error) {
-    console.error('Get all products error:', error);
-    res.status(500).json({ error: 'Failed to fetch products' });
-  }
-};
+// Product management functions removed - replaced by prize system (migration 012)
 
 // User Management
 export const getAllUsers = async (req: AuthRequest, res: Response) => {
@@ -137,12 +15,13 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
          u.referral_code,
          u.points,
          u.is_admin,
+         u.email_verified,
          u.created_at,
          COUNT(DISTINCT rc.id) as total_clicks,
-         COUNT(DISTINCT p.id) as total_purchases
+         COUNT(DISTINCT upc.id) as total_prize_claims
        FROM users u
        LEFT JOIN referral_clicks rc ON u.id = rc.user_id
-       LEFT JOIN purchases p ON u.id = p.user_id
+       LEFT JOIN user_prize_claims upc ON u.id = upc.user_id
        GROUP BY u.id
        ORDER BY u.created_at DESC`
     );
@@ -154,9 +33,10 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
         referralCode: user.referral_code,
         points: user.points,
         isAdmin: user.is_admin,
+        emailVerified: user.email_verified,
         createdAt: user.created_at,
         totalClicks: parseInt(user.total_clicks),
-        totalPurchases: parseInt(user.total_purchases)
+        totalPrizeClaims: parseInt(user.total_prize_claims)
       }))
     });
   } catch (error) {
@@ -171,7 +51,9 @@ export const getUserDetails = async (req: AuthRequest, res: Response) => {
   try {
     // Get user info
     const userResult = await pool.query(
-      'SELECT id, email, referral_code, points, is_admin, created_at FROM users WHERE id = $1',
+      `SELECT id, email, referral_code, points, is_admin, email_verified,
+              first_name, age_range, country, terms_accepted_at, created_at
+       FROM users WHERE id = $1`,
       [id]
     );
 
@@ -191,12 +73,13 @@ export const getUserDetails = async (req: AuthRequest, res: Response) => {
       [id]
     );
 
-    // Get purchase history
-    const purchasesResult = await pool.query(
-      `SELECT product_name, points_spent, purchased_at
-       FROM purchases
-       WHERE user_id = $1
-       ORDER BY purchased_at DESC`,
+    // Get prize claim history (replaced purchases)
+    const claimsResult = await pool.query(
+      `SELECT pt.name as prize_name, upc.points_spent, upc.claimed_at
+       FROM user_prize_claims upc
+       JOIN prize_tiers pt ON upc.tier_id = pt.id
+       WHERE upc.user_id = $1
+       ORDER BY upc.claimed_at DESC`,
       [id]
     );
 
@@ -207,10 +90,15 @@ export const getUserDetails = async (req: AuthRequest, res: Response) => {
         referralCode: user.referral_code,
         points: user.points,
         isAdmin: user.is_admin,
+        emailVerified: user.email_verified,
+        firstName: user.first_name,
+        ageRange: user.age_range,
+        country: user.country,
+        termsAcceptedAt: user.terms_accepted_at,
         createdAt: user.created_at
       },
       clicks: clicksResult.rows,
-      purchases: purchasesResult.rows
+      prizeClaims: claimsResult.rows
     });
   } catch (error) {
     console.error('Get user details error:', error);
@@ -283,9 +171,11 @@ export const getAnalytics = async (req: AuthRequest, res: Response) => {
     const statsResult = await pool.query(`
       SELECT
         (SELECT COUNT(*) FROM users) as total_users,
+        (SELECT COUNT(*) FROM users WHERE email_verified = true) as verified_users,
         (SELECT COUNT(*) FROM referral_clicks) as total_clicks,
-        (SELECT COUNT(*) FROM purchases) as total_purchases,
-        (SELECT COALESCE(SUM(points_spent), 0) FROM purchases) as total_points_redeemed
+        (SELECT COUNT(*) FROM user_prize_claims) as total_prize_claims,
+        (SELECT COALESCE(SUM(points_spent), 0) FROM user_prize_claims) as total_points_redeemed,
+        (SELECT COALESCE(SUM(points), 0) FROM users) as total_points_in_system
     `);
 
     // Get recent activity
@@ -297,11 +187,13 @@ export const getAnalytics = async (req: AuthRequest, res: Response) => {
       LIMIT 10
     `);
 
-    const recentPurchasesResult = await pool.query(`
-      SELECT u.email, p.product_name, p.points_spent, p.purchased_at
-      FROM purchases p
-      JOIN users u ON p.user_id = u.id
-      ORDER BY p.purchased_at DESC
+    // Get recent prize claims (replaced purchases)
+    const recentClaimsResult = await pool.query(`
+      SELECT u.email, pt.name as prize_name, upc.points_spent, upc.claimed_at
+      FROM user_prize_claims upc
+      JOIN users u ON upc.user_id = u.id
+      JOIN prize_tiers pt ON upc.tier_id = pt.id
+      ORDER BY upc.claimed_at DESC
       LIMIT 10
     `);
 
@@ -321,7 +213,7 @@ export const getAnalytics = async (req: AuthRequest, res: Response) => {
     res.json({
       stats: statsResult.rows[0],
       recentClicks: recentClicksResult.rows,
-      recentPurchases: recentPurchasesResult.rows,
+      recentPrizeClaims: recentClaimsResult.rows,
       topReferrers: topReferrersResult.rows
     });
   } catch (error) {

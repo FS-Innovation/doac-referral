@@ -1,9 +1,5 @@
 import { Router } from 'express';
 import {
-  createProduct,
-  updateProduct,
-  deleteProduct,
-  getAllProductsAdmin,
   getAllUsers,
   getUserDetails,
   updateRedirectUrl,
@@ -20,11 +16,7 @@ const router = Router();
 router.use(authenticateToken);
 router.use(requireAdmin);
 
-// Product management
-router.get('/products', getAllProductsAdmin);
-router.post('/products', createProduct);
-router.put('/products/:id', updateProduct);
-router.delete('/products/:id', deleteProduct);
+// Product management routes removed - replaced by prize system (migration 012)
 
 // User management
 router.get('/users', getAllUsers);

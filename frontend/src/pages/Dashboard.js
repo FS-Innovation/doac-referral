@@ -2163,18 +2163,16 @@ const Dashboard = () => {
                     Are you sure? This will use <span style={{ color: '#FFF' }}>{confirmRedeemPrize.points_required.toLocaleString()} pts</span>
                   </p>
 
-                  {/* Gold Redeem Button - bright gold static, shimmer on hover */}
+                  {/* White Redeem Button - clean premium look */}
                   <button
                     onClick={handleConfirmRedeem}
                     disabled={claimingTier}
-                    className="gold-button-hover"
                     style={{
                       width: '100%',
                       background: claimingTier
                         ? '#333'
-                        : 'linear-gradient(135deg, #FFD700 0%, #FFA500 25%, #FFD700 50%, #FFA500 75%, #FFD700 100%)',
-                      backgroundSize: '200% 200%',
-                      color: '#000',
+                        : 'linear-gradient(135deg, #FFFFFF 0%, #F0F0F0 50%, #FFFFFF 100%)',
+                      color: claimingTier ? '#666' : '#000',
                       border: 'none',
                       padding: isMobile ? '14px' : '16px',
                       borderRadius: '10px',
@@ -2185,17 +2183,18 @@ const Dashboard = () => {
                       transition: 'all 0.3s ease',
                       textTransform: 'uppercase',
                       letterSpacing: '0.05em',
-                      marginBottom: '12px'
+                      marginBottom: '12px',
+                      boxShadow: '0 4px 15px rgba(255, 255, 255, 0.2)'
                     }}
                     onMouseEnter={(e) => {
                       if (!claimingTier) {
                         e.currentTarget.style.transform = 'scale(1.03)';
-                        e.currentTarget.style.animation = 'shimmer 1.5s ease-in-out infinite';
+                        e.currentTarget.style.boxShadow = '0 6px 20px rgba(255, 255, 255, 0.3)';
                       }
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.transform = 'scale(1)';
-                      e.currentTarget.style.animation = 'none';
+                      e.currentTarget.style.boxShadow = '0 4px 15px rgba(255, 255, 255, 0.2)';
                     }}
                   >
                     {claimingTier ? 'Redeeming...' : 'Yes, continue'}
