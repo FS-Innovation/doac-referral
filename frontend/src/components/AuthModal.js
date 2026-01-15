@@ -374,7 +374,8 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
           firstName: firstName.trim(),
           ageRange,
           country,
-          marketingConsent
+          marketingConsent,
+          termsAccepted  // LEGAL: Send explicit ToS acceptance to backend for audit trail
         });
       } else {
         await login(sanitizedEmail, sanitizedPassword);

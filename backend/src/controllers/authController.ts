@@ -9,7 +9,7 @@ import crypto from 'crypto';
 import { sendPasswordResetEmail, sendVerificationEmail } from '../services/emailService';
 
 export const register = async (req: Request, res: Response) => {
-  const { email, password, firstName, ageRange, country, marketingConsent } = req.body;
+  const { email, password, firstName, ageRange, country, marketingConsent, termsAccepted } = req.body;
 
   try {
     // Validate input
@@ -63,6 +63,11 @@ export const register = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Valid country is required' });
     }
 
+    // LEGAL REQUIREMENT: Terms & Conditions must be explicitly accepted
+    if (termsAccepted !== true) {
+      return res.status(400).json({ error: 'You must accept the Terms & Conditions to create an account' });
+    }
+
     // Sanitize first name (remove potential XSS)
     const sanitizedFirstName = firstName.trim().substring(0, 50).replace(/[<>]/g, '');
 
@@ -91,11 +96,12 @@ export const register = async (req: Request, res: Response) => {
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     // Create user with profile data (using normalized email)
+    // LEGAL: Store terms_accepted_at timestamp for compliance/audit trail
     const result = await pool.query<User>(
-      `INSERT INTO users (email, password_hash, referral_code, first_name, age_range, country, marketing_consent, email_verified, verification_token, verification_token_expires, verification_sent_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO users (email, password_hash, referral_code, first_name, age_range, country, marketing_consent, email_verified, verification_token, verification_token_expires, verification_sent_at, terms_accepted_at, terms_version)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING id, email, referral_code, points, is_admin, created_at, first_name, age_range, country, email_verified`,
-      [normalizedEmail, hashedPassword, referralCode, sanitizedFirstName, ageRange, country.toUpperCase(), marketingConsent || false, false, verificationToken, verificationExpires, new Date()]
+      [normalizedEmail, hashedPassword, referralCode, sanitizedFirstName, ageRange, country.toUpperCase(), marketingConsent || false, false, verificationToken, verificationExpires, new Date(), new Date(), '2026-01-14']
     );
 
     const user = result.rows[0];
@@ -187,10 +193,13 @@ export const login = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
+    // Normalize email (same as registration) for consistent lookup
+    const normalizedEmail = email.toLowerCase().trim();
+
     // Find user
     const result = await pool.query<User>(
       'SELECT * FROM users WHERE email = $1',
-      [email]
+      [normalizedEmail]
     );
 
     if (result.rows.length === 0) {
