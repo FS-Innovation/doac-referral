@@ -339,6 +339,19 @@ const Dashboard = () => {
     };
   }, [confirmRedeemPrize, isMobile]);
 
+  // Document-level mouse tracking for 3D tilt effect
+  // This allows tracking even over the nav header (which has higher z-index visually)
+  useEffect(() => {
+    if (!confirmRedeemPrize || isMobile) return;
+
+    // Attach to document so mouse tracking works over any element including nav header
+    document.addEventListener('mousemove', handleModalMouseMove);
+
+    return () => {
+      document.removeEventListener('mousemove', handleModalMouseMove);
+    };
+  }, [confirmRedeemPrize, isMobile, handleModalMouseMove]);
+
   // Legacy function name for compatibility
   const handleClaimPrize = handleRedeemClick;
 
@@ -1924,7 +1937,7 @@ const Dashboard = () => {
               backdropFilter: 'blur(20px)',
               WebkitBackdropFilter: 'blur(20px)',
               perspective: '1000px'
-            }} onClick={handleCancelRedeem} onMouseMove={handleModalMouseMove}>
+            }} onClick={handleCancelRedeem}>
 
               {/* ===== DRAMATIC BLOOM - GPU OPTIMIZED ===== */}
               {/* Trick: Pre-baked blur at different sizes, animate with transform/opacity only */}
