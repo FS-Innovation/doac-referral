@@ -14,6 +14,7 @@ import ResetPassword from './pages/ResetPassword';
 import CookiePolicy from './pages/CookiePolicy';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsConditions from './pages/TermsConditions';
+import VerifyEmail from './pages/VerifyEmail';
 
 // Authenticated route wrapper - redirects to dashboard if logged in
 function AuthenticatedRoute({ children }) {
@@ -88,6 +89,9 @@ function AppContent() {
 
         {/* Password reset - public */}
         <Route path="/reset-password" element={<ResetPassword />} />
+
+        {/* Email verification - public */}
+        <Route path="/verify-email" element={<VerifyEmail />} />
 
         {/* Policy pages - public */}
         <Route path="/cookie-policy" element={<CookiePolicy />} />

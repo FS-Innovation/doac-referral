@@ -1,12 +1,13 @@
 import { Router } from 'express';
-import { register, login, getProfile, logout, forgotPassword, validateResetToken, resetPassword } from '../controllers/authController';
+import { register, login, getProfile, logout, forgotPassword, validateResetToken, resetPassword, verifyEmail, resendVerification, getVerificationStatus } from '../controllers/authController';
 import { authenticateToken } from '../middleware/auth';
 import {
   loginLimiter,
   registerLimiter,
   forgotPasswordLimiter,
   verifyResetCodeLimiter,
-  resetPasswordLimiter
+  resetPasswordLimiter,
+  generalLimiter
 } from '../middleware/rateLimiter';
 
 const router = Router();
@@ -22,5 +23,10 @@ router.get('/profile', authenticateToken, getProfile);
 router.post('/forgot-password', forgotPasswordLimiter, forgotPassword);
 router.post('/validate-reset-token', verifyResetCodeLimiter, validateResetToken);
 router.post('/reset-password', resetPasswordLimiter, resetPassword);
+
+// Email verification endpoints
+router.post('/verify-email', generalLimiter, verifyEmail);
+router.post('/resend-verification', authenticateToken, generalLimiter, resendVerification);
+router.get('/verification-status', authenticateToken, getVerificationStatus);
 
 export default router;

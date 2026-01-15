@@ -52,13 +52,17 @@ api.interceptors.response.use(
 
 // Auth endpoints
 export const authAPI = {
-  register: (email, password) => api.post('/auth/register', { email, password }),
+  register: (email, password, profileData = {}) => api.post('/auth/register', { email, password, ...profileData }),
   login: (email, password) => api.post('/auth/login', { email, password }),
   logout: () => api.post('/auth/logout'),
   getProfile: () => api.get('/auth/profile'),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   validateResetToken: (token) => api.post('/auth/validate-reset-token', { token }),
-  resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword })
+  resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }),
+  // Email verification
+  verifyEmail: (token) => api.post('/auth/verify-email', { token }),
+  resendVerification: () => api.post('/auth/resend-verification'),
+  getVerificationStatus: () => api.get('/auth/verification-status')
 };
 
 // User endpoints

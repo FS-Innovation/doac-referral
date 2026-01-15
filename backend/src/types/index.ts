@@ -7,6 +7,14 @@ export interface User {
   referral_code: string;
   points: number;
   is_admin: boolean;
+  first_name: string | null;
+  age_range: string | null;
+  country: string | null;
+  marketing_consent: boolean;
+  email_verified: boolean;
+  verification_token: string | null;
+  verification_token_expires: Date | null;
+  verification_sent_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }

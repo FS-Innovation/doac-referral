@@ -5,7 +5,7 @@ const PrivacyPolicy = () => {
     <div className="policy-page">
       <div className="policy-container">
         <h1>Privacy Policy</h1>
-        <p className="policy-updated">Last Updated: 17 November 2025</p>
+        <p className="policy-updated">Last Updated: 14 January 2026</p>
 
         <section className="policy-section">
           <h2>Introduction</h2>
@@ -43,8 +43,22 @@ const PrivacyPolicy = () => {
           <h3>Personal Data</h3>
           <p>While using Our Service, We may ask You to provide Us with certain personally identifiable information that can be used to contact or identify You. Personally identifiable information may include, but is not limited to:</p>
           <ul>
-            <li>Email address</li>
+            <li><strong>Email address</strong> - Required for account creation, authentication, and essential service communications</li>
+            <li><strong>First name</strong> - Used for personalisation of Your experience and prize fulfilment</li>
+            <li><strong>Age range</strong> - Used to verify You are 18+ (eligibility requirement) and for demographic analytics to improve Our Service</li>
+            <li><strong>Country</strong> - Used to determine prize eligibility, shipping availability, and to comply with regional legal requirements</li>
           </ul>
+
+          <h3>Marketing Communications</h3>
+          <p>
+            With Your explicit consent, We may collect and process Your contact details to send You marketing communications about products, offers, and news from DOAC and our partners.
+          </p>
+          <ul>
+            <li><strong>Marketing consent</strong> - Your opt-in preference for receiving promotional emails</li>
+          </ul>
+          <p>
+            <strong>You can withdraw Your marketing consent at any time</strong> by clicking the unsubscribe link in any marketing email, updating Your account preferences, or contacting Us directly. Withdrawing consent will not affect the lawfulness of processing based on consent before its withdrawal.
+          </p>
 
           <h3>Usage Data</h3>
           <p>Usage Data is collected automatically when using the Service.</p>
@@ -122,6 +136,18 @@ const PrivacyPolicy = () => {
             <li><strong>To manage Your requests:</strong> To attend and manage Your requests to Us.</li>
             <li><strong>Fraud prevention:</strong> To detect and prevent abuse, fraud, and manipulation of the referral system.</li>
             <li><strong>For other purposes:</strong> We may use Your information for data analysis, identifying usage trends, and to evaluate and improve our Service.</li>
+            <li><strong>Prize fulfilment:</strong> To verify Your eligibility, process prize claims, and arrange delivery of physical prizes using Your first name and country.</li>
+            <li><strong>Personalisation:</strong> To address You by name and customise Your experience within the Service.</li>
+            <li><strong>Marketing (with consent):</strong> To send You promotional communications about products, offers, and news from DOAC, only if You have opted in.</li>
+          </ul>
+
+          <h3>Legal Basis for Processing (UK GDPR)</h3>
+          <p>We process Your personal data under the following lawful bases:</p>
+          <ul>
+            <li><strong>Contract:</strong> Processing necessary to perform our contract with You (account management, referral tracking, prize redemption)</li>
+            <li><strong>Legitimate interests:</strong> Fraud prevention, service improvement, and analytics (where not overridden by Your rights)</li>
+            <li><strong>Consent:</strong> Marketing communications (You may withdraw consent at any time)</li>
+            <li><strong>Legal obligation:</strong> Where required to comply with UK law</li>
           </ul>
         </section>
 
@@ -139,9 +165,11 @@ const PrivacyPolicy = () => {
         <section className="policy-section">
           <h2>Retention of Your Personal Data</h2>
           <ul>
-            <li><strong>Account data (email):</strong> Retained while your account is active. You may request deletion at any time.</li>
+            <li><strong>Account data (email, first name, age range, country):</strong> Retained while Your account is active. You may request deletion at any time.</li>
+            <li><strong>Marketing consent:</strong> Retained while Your account is active. Your preference is recorded and can be changed at any time.</li>
             <li><strong>Fraud prevention data:</strong> Automatically deleted after 24 hours.</li>
             <li><strong>Usage Data:</strong> Generally retained for a shorter period of time, except when used to strengthen security or improve functionality.</li>
+            <li><strong>Prize claim records:</strong> Retained for 7 years for tax and legal compliance purposes.</li>
           </ul>
         </section>
 

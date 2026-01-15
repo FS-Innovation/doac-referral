@@ -177,7 +177,7 @@ export const claimPrize = async (req: AuthRequest, res: Response) => {
 
       // Lock the user row to prevent race conditions on points
       const userResult = await client.query(
-        'SELECT id, points, email FROM users WHERE id = $1 FOR UPDATE',
+        'SELECT id, points, email, email_verified FROM users WHERE id = $1 FOR UPDATE',
         [userId]
       );
 
@@ -188,6 +188,17 @@ export const claimPrize = async (req: AuthRequest, res: Response) => {
 
       const userPoints = userResult.rows[0].points;
       const actualEmail = userResult.rows[0].email;
+      const emailVerified = userResult.rows[0].email_verified;
+
+      // CRITICAL: Require email verification before redeeming prizes
+      if (!emailVerified) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({
+          error: 'Email verification required',
+          message: 'Please verify your email address before redeeming prizes. Check your inbox for the verification link.',
+          requiresVerification: true
+        });
+      }
 
       // Get tier details with lock
       const tierResult = await client.query(

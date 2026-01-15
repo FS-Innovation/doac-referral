@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { userAPI, episodesAPI, prizeAPI } from '../services/api';
@@ -11,7 +11,7 @@ import {
 } from '../utils/episode';
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, emailVerified, resendVerificationEmail } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -46,6 +46,38 @@ const Dashboard = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartX, setDragStartX] = useState(0);
   const [dragOffset, setDragOffset] = useState(0);
+
+  // Email verification state
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState('');
+  const [verificationBannerDismissed, setVerificationBannerDismissed] = useState(false);
+
+  // 3D Tilt effect state for confirmation card
+  const [cardTilt, setCardTilt] = useState({ rotateX: 0, rotateY: 0 });
+  const [glowOffset, setGlowOffset] = useState({ x: 0, y: 0 });
+  const [glowIntensity, setGlowIntensity] = useState(0); // 0-1 based on tilt amount
+
+  // Handle resend verification email
+  const handleResendVerification = async () => {
+    if (resendingVerification) return;
+
+    setResendingVerification(true);
+    setVerificationMessage('');
+
+    try {
+      await resendVerificationEmail();
+      setVerificationMessage('Verification email sent! Check your inbox.');
+    } catch (error) {
+      if (error.response?.status === 429) {
+        const waitTime = error.response?.data?.retryAfter || 60;
+        setVerificationMessage(`Please wait ${waitTime} seconds before requesting again.`);
+      } else {
+        setVerificationMessage(error.response?.data?.error || 'Failed to send email. Please try again.');
+      }
+    } finally {
+      setResendingVerification(false);
+    }
+  };
 
   useEffect(() => {
     const handleResize = () => {
@@ -211,7 +243,101 @@ const Dashboard = () => {
   // Cancel redemption
   const handleCancelRedeem = () => {
     setConfirmRedeemPrize(null);
+    // Reset tilt when modal closes
+    setCardTilt({ rotateX: 0, rotateY: 0 });
+    setGlowOffset({ x: 0, y: 0 });
+    setGlowIntensity(0);
   };
+
+  // Throttle ref for mouse handler - limits updates to ~30fps for performance
+  const lastMouseUpdate = useRef(0);
+  const rafId = useRef(null);
+
+  // 3D Tilt effect handler for confirmation card - tracks mouse anywhere on screen
+  // Creates "Pulp Fiction briefcase" effect where glow intensifies as card tilts
+  // Throttled to 30fps for smooth performance on lower-end devices
+  const handleModalMouseMove = useCallback((e) => {
+    const now = Date.now();
+
+    // Throttle to ~30fps (33ms intervals) - halves CPU usage with minimal visual difference
+    if (now - lastMouseUpdate.current < 33) return;
+    lastMouseUpdate.current = now;
+
+    // Cancel any pending animation frame
+    if (rafId.current) cancelAnimationFrame(rafId.current);
+
+    // Use requestAnimationFrame to sync with browser paint cycle
+    rafId.current = requestAnimationFrame(() => {
+      // Calculate mouse position relative to viewport center (-1 to 1)
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight / 2;
+
+      // Use viewport dimensions for normalization (smoother across whole screen)
+      const mouseX = (e.clientX - centerX) / (window.innerWidth / 2);
+      const mouseY = (e.clientY - centerY) / (window.innerHeight / 2);
+
+      // Clamp values to prevent extreme tilts at screen edges
+      const clampedX = Math.max(-1, Math.min(1, mouseX));
+      const clampedY = Math.max(-1, Math.min(1, mouseY));
+
+      // Apply tilt with max 8 degrees rotation for more dramatic effect
+      const maxTilt = 8;
+      const rotateY = clampedX * maxTilt;
+      const rotateX = -clampedY * maxTilt; // Inverted for natural feel
+
+      setCardTilt({ rotateX, rotateY });
+
+      // Calculate tilt intensity (0-1) based on distance from center
+      // This drives the "briefcase opening" glow effect
+      const tiltMagnitude = Math.sqrt(clampedX * clampedX + clampedY * clampedY);
+      const intensity = Math.min(1, tiltMagnitude * 1.2); // Slightly boost for more drama
+      setGlowIntensity(intensity);
+
+      // Glow offset: light follows the mouse/tilt direction
+      // When tilting right, glow expands to the right towards the mouse
+      setGlowOffset({
+        x: clampedX * 30,
+        y: clampedY * 30
+      });
+    });
+  }, []);
+
+  // Gyroscope support for mobile devices
+  useEffect(() => {
+    if (!confirmRedeemPrize || !isMobile) return;
+
+    const handleOrientation = (e) => {
+      if (e.gamma === null || e.beta === null) return;
+
+      // gamma: left/right tilt (-90 to 90), beta: front/back tilt (-180 to 180)
+      // Clamp and normalize to -1 to 1 range, with max 20 degree device tilt
+      const maxDeviceTilt = 20;
+      const normalizedX = Math.max(-1, Math.min(1, e.gamma / maxDeviceTilt));
+      const normalizedY = Math.max(-1, Math.min(1, (e.beta - 45) / maxDeviceTilt)); // 45 is typical holding angle
+
+      const maxTilt = 8;
+      setCardTilt({
+        rotateX: -normalizedY * maxTilt,
+        rotateY: normalizedX * maxTilt
+      });
+
+      // Calculate intensity for briefcase effect
+      const tiltMagnitude = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY);
+      setGlowIntensity(Math.min(1, tiltMagnitude * 1.2));
+
+      setGlowOffset({
+        x: normalizedX * 30,
+        y: normalizedY * 30
+      });
+    };
+
+    // Add gyroscope listener (iOS 13+ requires permission on user gesture, but we add listener anyway)
+    window.addEventListener('deviceorientation', handleOrientation);
+
+    return () => {
+      window.removeEventListener('deviceorientation', handleOrientation);
+    };
+  }, [confirmRedeemPrize, isMobile]);
 
   // Legacy function name for compatibility
   const handleClaimPrize = handleRedeemClick;
@@ -430,6 +556,109 @@ const Dashboard = () => {
 
   return (
     <>
+    {/* Email Verification Notice - Small non-intrusive popup */}
+    {!emailVerified && !verificationBannerDismissed && (
+      <div style={{
+        position: 'fixed',
+        bottom: isMobile ? '16px' : '24px',
+        right: isMobile ? '16px' : '24px',
+        background: '#0D0D0D',
+        border: '1px solid transparent',
+        backgroundImage: 'linear-gradient(#0D0D0D, #0D0D0D), linear-gradient(135deg, #919191 0%, #5A2F30 100%)',
+        backgroundOrigin: 'border-box',
+        backgroundClip: 'padding-box, border-box',
+        borderRadius: '12px',
+        padding: '16px',
+        maxWidth: isMobile ? 'calc(100% - 32px)' : '320px',
+        zIndex: 1000,
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)'
+      }}>
+        {/* Close button */}
+        <button
+          onClick={() => setVerificationBannerDismissed(true)}
+          style={{
+            position: 'absolute',
+            top: '8px',
+            right: '8px',
+            background: 'none',
+            border: 'none',
+            color: '#666',
+            cursor: 'pointer',
+            padding: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+          title="Dismiss"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+
+        {/* Icon and message */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '12px' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#919191" strokeWidth="2" style={{ flexShrink: 0, marginTop: '2px' }}>
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+            <polyline points="22,6 12,13 2,6"/>
+          </svg>
+          <div>
+            <p style={{
+              color: '#FFF',
+              fontSize: '13px',
+              fontWeight: '500',
+              margin: '0 0 4px 0',
+              lineHeight: '1.4',
+              paddingRight: '16px'
+            }}>
+              Verify your email
+            </p>
+            <p style={{
+              color: '#999',
+              fontSize: '12px',
+              margin: 0,
+              lineHeight: '1.4'
+            }}>
+              Check your inbox to complete verification
+            </p>
+          </div>
+        </div>
+
+        {/* Feedback message */}
+        {verificationMessage && (
+          <p style={{
+            color: verificationMessage.includes('sent') ? '#4ade80' : '#999',
+            fontSize: '12px',
+            margin: '0 0 10px 0'
+          }}>
+            {verificationMessage}
+          </p>
+        )}
+
+        {/* Resend button */}
+        <button
+          onClick={handleResendVerification}
+          disabled={resendingVerification}
+          style={{
+            width: '100%',
+            padding: '10px 16px',
+            background: '#0D0D0D',
+            border: '1px solid rgba(145, 145, 145, 0.3)',
+            borderRadius: '8px',
+            color: '#FFF',
+            fontSize: '13px',
+            fontWeight: '500',
+            cursor: resendingVerification ? 'not-allowed' : 'pointer',
+            opacity: resendingVerification ? 0.6 : 1,
+            transition: 'all 0.2s'
+          }}
+        >
+          {resendingVerification ? 'Sending...' : 'Resend verification email'}
+        </button>
+      </div>
+    )}
+
     <div className="container" style={{ padding: isMobile ? '10px' : '20px' }}>
       <div style={{
         display: 'flex',
@@ -444,10 +673,10 @@ const Dashboard = () => {
           fontSize: isMobile ? '1.5rem' : '2.1875rem',
           fontStyle: 'normal',
           fontWeight: '500',
-          lineHeight: isMobile ? '1.5rem' : '1.875rem',
-          letterSpacing: '0',
+          lineHeight: isMobile ? '1.8rem' : '2.5rem',
+          letterSpacing: '-0.01em',
           margin: '0',
-          marginBottom: isMobile ? '1rem' : '1.5rem',
+          marginBottom: isMobile ? '2rem' : '2.5rem',
           padding: isMobile ? '0 20px' : '0'
         }}>
           Use your referral link<br />to earn points
@@ -1693,22 +1922,181 @@ const Dashboard = () => {
               zIndex: 1000,
               padding: '20px',
               backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)'
-            }} onClick={handleCancelRedeem}>
-              <div style={{
-                background: '#000',
-                borderRadius: '16px',
-                width: isMobile ? '260px' : '320px',
-                overflow: 'hidden',
-                border: '2px solid rgba(255, 190, 80, 0.9)',
-                boxShadow: `
-                  0 0 12px 4px rgba(255, 190, 80, 0.7),
-                  0 0 25px 8px rgba(255, 170, 50, 0.45),
-                  0 0 40px 15px rgba(255, 150, 30, 0.25),
-                  0 0 60px 25px rgba(200, 120, 20, 0.1)
-                `,
-                position: 'relative'
-              }} onClick={e => e.stopPropagation()}>
+              WebkitBackdropFilter: 'blur(20px)',
+              perspective: '1000px'
+            }} onClick={handleCancelRedeem} onMouseMove={handleModalMouseMove}>
+
+              {/* ===== DRAMATIC BLOOM - GPU OPTIMIZED ===== */}
+              {/* Trick: Pre-baked blur at different sizes, animate with transform/opacity only */}
+              {/* Each layer has STATIC blur, we scale them up to simulate "bloom expanding" */}
+
+              {/* Layer 1: Outer atmospheric wash - massive scale range */}
+              <div
+                className="glow-layer-1"
+                style={{
+                  position: 'absolute',
+                  width: isMobile ? '200px' : '250px',
+                  height: isMobile ? '250px' : '300px',
+                  borderRadius: '50%',
+                  background: 'radial-gradient(ellipse at 50% 50%, rgba(255, 180, 80, 0.5) 0%, rgba(255, 150, 40, 0.2) 50%, transparent 70%)',
+                  filter: 'blur(60px)',
+                  pointerEvents: 'none',
+                  transform: `translate3d(${glowOffset.x * 2.5}px, ${glowOffset.y * 2.5}px, 0) scale3d(${1.5 + glowIntensity * 2.5}, ${1.5 + glowIntensity * 3}, 1)`,
+                  opacity: 0.4 + glowIntensity * 0.5,
+                  transition: 'transform 0.2s ease-out, opacity 0.2s ease-out',
+                  willChange: 'transform, opacity'
+                }}
+              />
+
+              {/* Layer 2: Mid bloom - follows mouse more closely */}
+              <div
+                className="glow-layer-2"
+                style={{
+                  position: 'absolute',
+                  width: isMobile ? '220px' : '280px',
+                  height: isMobile ? '280px' : '350px',
+                  borderRadius: '50%',
+                  background: 'radial-gradient(ellipse at 50% 50%, rgba(255, 200, 100, 0.7) 0%, rgba(255, 170, 60, 0.4) 40%, transparent 70%)',
+                  filter: 'blur(45px)',
+                  pointerEvents: 'none',
+                  transform: `translate3d(${glowOffset.x * 1.8}px, ${glowOffset.y * 1.8}px, 0) scale3d(${1.2 + glowIntensity * 1.5}, ${1.2 + glowIntensity * 1.8}, 1)`,
+                  opacity: 0.5 + glowIntensity * 0.4,
+                  transition: 'transform 0.15s ease-out, opacity 0.15s ease-out',
+                  willChange: 'transform, opacity'
+                }}
+              />
+
+              {/* Layer 3: Inner glow - tight to card, scales less */}
+              <div
+                className="glow-layer-3"
+                style={{
+                  position: 'absolute',
+                  width: isMobile ? '260px' : '320px',
+                  height: isMobile ? '340px' : '420px',
+                  borderRadius: '50%',
+                  background: 'radial-gradient(ellipse at 50% 50%, rgba(255, 220, 140, 0.8) 0%, rgba(255, 190, 80, 0.5) 35%, transparent 65%)',
+                  filter: 'blur(30px)',
+                  pointerEvents: 'none',
+                  transform: `translate3d(${glowOffset.x * 1.2}px, ${glowOffset.y * 1.2}px, 0) scale3d(${1 + glowIntensity * 0.6}, ${1 + glowIntensity * 0.7}, 1)`,
+                  opacity: 0.6 + glowIntensity * 0.35,
+                  transition: 'transform 0.12s ease-out, opacity 0.12s ease-out',
+                  willChange: 'transform, opacity'
+                }}
+              />
+
+              {/* Layer 4: Hot core - divine light center */}
+              <div
+                style={{
+                  position: 'absolute',
+                  width: isMobile ? '160px' : '200px',
+                  height: isMobile ? '200px' : '260px',
+                  borderRadius: '50%',
+                  background: 'radial-gradient(ellipse at 50% 50%, rgba(255, 250, 230, 1) 0%, rgba(255, 230, 180, 0.8) 25%, rgba(255, 200, 120, 0.4) 50%, transparent 70%)',
+                  filter: 'blur(15px)',
+                  pointerEvents: 'none',
+                  transform: `translate3d(${glowOffset.x * 0.8}px, ${glowOffset.y * 0.8}px, 0) scale3d(${1 + glowIntensity * 0.4}, ${1 + glowIntensity * 0.5}, 1)`,
+                  opacity: 0.7 + glowIntensity * 0.3,
+                  transition: 'transform 0.1s ease-out, opacity 0.1s ease-out',
+                  willChange: 'transform, opacity'
+                }}
+              />
+
+              {/* Layer 5: Light spill - stretches toward mouse direction without rotation */}
+              <div
+                style={{
+                  position: 'absolute',
+                  width: isMobile ? '200px' : '250px',
+                  height: isMobile ? '200px' : '250px',
+                  borderRadius: '50%',
+                  background: 'radial-gradient(ellipse at 50% 50%, rgba(255, 240, 200, 0.5) 0%, rgba(255, 220, 150, 0.25) 40%, transparent 65%)',
+                  filter: 'blur(30px)',
+                  pointerEvents: 'none',
+                  /* Stretch in direction of mouse using asymmetric scale */
+                  transform: `translate3d(${glowOffset.x * 2.5}px, ${glowOffset.y * 2.5}px, 0) scale3d(${1 + Math.abs(glowOffset.x / 30) * 1.5 + glowIntensity * 0.5}, ${1 + Math.abs(glowOffset.y / 30) * 1.5 + glowIntensity * 0.5}, 1)`,
+                  opacity: 0.3 + glowIntensity * 0.5,
+                  transition: 'transform 0.15s ease-out, opacity 0.15s ease-out',
+                  willChange: 'transform, opacity'
+                }}
+              />
+
+              {/* ===== THE CARD ===== */}
+              <div
+                style={{
+                  background: '#000',
+                  borderRadius: '16px',
+                  width: isMobile ? '260px' : '320px',
+                  overflow: 'hidden',
+                  border: '2px solid rgba(255, 190, 80, 0.9)',
+                  /* Box-shadows shift with glow direction */
+                  boxShadow: `
+                    0 0 ${15 + glowIntensity * 15}px ${3 + glowIntensity * 5}px rgba(255, 210, 120, ${0.5 + glowIntensity * 0.4}),
+                    ${glowOffset.x * 0.4}px ${glowOffset.y * 0.4}px ${30 + glowIntensity * 30}px ${8 + glowIntensity * 12}px rgba(255, 180, 80, ${0.35 + glowIntensity * 0.35}),
+                    ${glowOffset.x * 0.6}px ${glowOffset.y * 0.6}px ${50 + glowIntensity * 50}px ${15 + glowIntensity * 20}px rgba(255, 150, 50, ${0.2 + glowIntensity * 0.25}),
+                    ${glowOffset.x * 0.8}px ${glowOffset.y * 0.8}px ${80 + glowIntensity * 70}px ${25 + glowIntensity * 30}px rgba(200, 120, 30, ${0.1 + glowIntensity * 0.15})
+                  `,
+                  position: 'relative',
+                  zIndex: 1,
+                  transform: `perspective(1000px) rotateX(${cardTilt.rotateX}deg) rotateY(${cardTilt.rotateY}deg) translateZ(0)`,
+                  transition: 'transform 0.15s ease-out, box-shadow 0.12s ease-out',
+                  transformStyle: 'preserve-3d',
+                  willChange: 'transform'
+                }}
+                onClick={e => e.stopPropagation()}
+              >
+                {/* Subtle ambient reflection - soft since card is backlit */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    borderRadius: '14px',
+                    pointerEvents: 'none',
+                    zIndex: 10,
+                    overflow: 'hidden'
+                  }}
+                >
+                  {/* Soft elongated reflection - subtle but visible for backlit scenario */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: `${15 - cardTilt.rotateX * 6}%`,
+                      left: `${5 - cardTilt.rotateY * 10}%`,
+                      width: '200%',
+                      height: '35%',
+                      background: `radial-gradient(
+                        ellipse 60% 30% at 50% 50%,
+                        rgba(255, 255, 255, ${0.12 + glowIntensity * 0.06}) 0%,
+                        rgba(255, 255, 255, ${0.04 + glowIntensity * 0.03}) 60%,
+                        transparent 100%
+                      )`,
+                      transform: `rotate(${-30 + cardTilt.rotateY * 2}deg)`,
+                      opacity: 0.55 + glowIntensity * 0.3,
+                      transition: 'top 0.15s ease-out, left 0.15s ease-out, transform 0.15s ease-out, opacity 0.15s ease-out',
+                      willChange: 'top, left, transform'
+                    }}
+                  />
+                </div>
+
+                {/* Edge definition - very subtle depth */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    borderRadius: '14px',
+                    pointerEvents: 'none',
+                    zIndex: 11,
+                    boxShadow: `
+                      inset ${-cardTilt.rotateY * 0.4}px ${cardTilt.rotateX * 0.4}px 20px rgba(255, 255, 255, ${0.03 + glowIntensity * 0.025}),
+                      inset ${cardTilt.rotateY * 0.25}px ${-cardTilt.rotateX * 0.25}px 12px rgba(0, 0, 0, ${0.08 + glowIntensity * 0.04})
+                    `,
+                    transition: 'box-shadow 0.15s ease-out'
+                  }}
+                />
 
                 {/* Prize Image - Square like carousel cards */}
                 <div style={{
@@ -1966,6 +2354,24 @@ const Dashboard = () => {
             0%, 100% { opacity: 0; transform: scale(0); }
             50% { opacity: 1; transform: scale(1); }
           }
+
+          /* GPU-optimized breathing - staggered timing for organic feel */
+          /* Only animates opacity (composited), transform handled by JS */
+          @keyframes glow-breathe-1 {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 0.6; }
+          }
+          @keyframes glow-breathe-2 {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 0.7; }
+          }
+          @keyframes glow-breathe-3 {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 0.8; }
+          }
+          .glow-layer-1 { animation: glow-breathe-1 3s ease-in-out infinite; }
+          .glow-layer-2 { animation: glow-breathe-2 2.5s ease-in-out infinite 0.3s; }
+          .glow-layer-3 { animation: glow-breathe-3 2s ease-in-out infinite 0.6s; }
         `}</style>
       </div>
 

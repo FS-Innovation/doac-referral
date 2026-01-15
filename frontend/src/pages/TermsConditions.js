@@ -5,7 +5,7 @@ const TermsConditions = () => {
     <div className="policy-page">
       <div className="policy-container">
         <h1>Terms & Conditions</h1>
-        <p className="policy-updated">Last Updated: 17 November 2025</p>
+        <p className="policy-updated">Last Updated: 14 January 2026</p>
 
         <section className="policy-section">
           <h2>Introduction</h2>
@@ -32,6 +32,31 @@ const TermsConditions = () => {
             <li>We may suspend or cancel your account with immediate effect if you breach these terms and conditions.</li>
             <li>You are responsible for maintaining the confidentiality of your account credentials.</li>
             <li>You may cancel your account at any time by contacting us.</li>
+          </ul>
+
+          <h3>Information We Collect at Registration</h3>
+          <p>When you create an account, we collect the following information:</p>
+          <ul>
+            <li><strong>Email address</strong> (required) - For account authentication and essential communications</li>
+            <li><strong>First name</strong> (required) - For personalisation and prize fulfilment</li>
+            <li><strong>Age range</strong> (required) - To verify you meet the 18+ age requirement</li>
+            <li><strong>Country</strong> (required) - For prize eligibility and shipping purposes</li>
+            <li><strong>Marketing preferences</strong> (optional) - Your choice to receive promotional communications</li>
+          </ul>
+          <p>By registering, you confirm that all information provided is accurate and that you are at least 18 years of age.</p>
+        </section>
+
+        <section className="policy-section">
+          <h2>Marketing Communications</h2>
+          <p>
+            During registration, you may choose to opt in to receive marketing communications from us. This is entirely optional
+            and not required to use the Service.
+          </p>
+          <ul>
+            <li>Marketing emails may include information about products, offers, promotions, and news from DOAC and our partners.</li>
+            <li>You can opt out at any time by clicking the unsubscribe link in any email or by updating your account preferences.</li>
+            <li>Opting out of marketing will not affect your access to the Service or essential account communications.</li>
+            <li>We will not share your email address with third parties for their own marketing purposes.</li>
           </ul>
         </section>
 
@@ -80,6 +105,8 @@ const TermsConditions = () => {
             <li>Prize redemption is subject to availability and may be delayed or substituted.</li>
             <li>Once a prize is redeemed, the transaction is final and cannot be reversed.</li>
             <li>We reserve the right to refuse prize redemption if we suspect fraudulent activity.</li>
+            <li><strong>Prize eligibility may vary by country.</strong> Some prizes (particularly physical products) may only be available to users in certain countries due to shipping, legal, or regulatory restrictions.</li>
+            <li>For physical prizes, we will use your registered first name and country to arrange delivery. You must ensure this information is accurate.</li>
           </ul>
         </section>
 
@@ -144,6 +171,29 @@ const TermsConditions = () => {
           <p>
             We may update these terms from time to time. Continued use of the Service after changes constitutes
             acceptance of the revised terms. We will notify users of material changes.
+          </p>
+        </section>
+
+        <section className="policy-section">
+          <h2>Data Protection</h2>
+          <p>
+            Your personal data is processed in accordance with the UK General Data Protection Regulation (UK GDPR) and the
+            Data Protection Act 2018. For full details on how we collect, use, and protect your data, please see our{' '}
+            <a href="/privacy-policy">Privacy Policy</a>.
+          </p>
+          <p>You have the right to:</p>
+          <ul>
+            <li>Access your personal data</li>
+            <li>Correct inaccurate data</li>
+            <li>Request deletion of your data</li>
+            <li>Object to processing</li>
+            <li>Data portability</li>
+            <li>Withdraw consent for marketing at any time</li>
+          </ul>
+          <p>
+            To exercise any of these rights, contact us at <strong>contact@flightstory.com</strong>. You also have the right
+            to lodge a complaint with the Information Commissioner's Office (ICO) if you believe your data protection rights
+            have been breached.
           </p>
         </section>
 

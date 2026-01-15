@@ -18,6 +18,7 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [emailVerified, setEmailVerified] = useState(false);
   const loadingRef = useRef(false); // Prevent duplicate requests
   const retryTimeoutRef = useRef(null); // For retry mechanism
   const retryCountRef = useRef(0); // Track retry attempts
@@ -188,11 +189,10 @@ export const AuthProvider = ({ children }) => {
     return response.data;
   };
 
-  const register = async (email, password) => {
-    const response = await authAPI.register(email, password);
+  const register = async (email, password, profileData = {}) => {
+    const response = await authAPI.register(email, password, profileData);
     const userData = response.data.user;
 
-    // Validate user data before setting state
     if (!userData || !userData.id || !userData.email || !userData.referralCode) {
       throw new Error('Invalid user data received from server');
     }
@@ -228,6 +228,34 @@ export const AuthProvider = ({ children }) => {
     return response.data;
   };
 
+  // Check email verification status
+  const checkVerificationStatus = async () => {
+    try {
+      const response = await authAPI.getVerificationStatus();
+      setEmailVerified(response.data.emailVerified);
+      return response.data.emailVerified;
+    } catch (error) {
+      console.error('Failed to check verification status:', error);
+      return false;
+    }
+  };
+
+  // Resend verification email
+  const resendVerificationEmail = async () => {
+    const response = await authAPI.resendVerification();
+    return response.data;
+  };
+
+  // Check verification status when user is loaded
+  useEffect(() => {
+    if (user) {
+      checkVerificationStatus();
+    } else {
+      setEmailVerified(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   const value = {
     user,
     loading,
@@ -238,7 +266,10 @@ export const AuthProvider = ({ children }) => {
     validateResetToken,
     resetPassword,
     isAuthenticated: !!user,
-    isAdmin: user?.isAdmin || false
+    isAdmin: user?.isAdmin || false,
+    emailVerified,
+    checkVerificationStatus,
+    resendVerificationEmail
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

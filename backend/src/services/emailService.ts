@@ -34,6 +34,301 @@ const createTransporter = () => {
   });
 };
 
+export const sendVerificationEmail = async (email: string, firstName: string, verifyUrl: string) => {
+  // Use SendGrid SDK if available
+  if (sendgridApiKey) {
+    const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'innovation@flightstory.com';
+    try {
+      await sgMail.send({
+        to: email,
+        from: {
+          email: fromEmail,
+          name: 'DOAC Team'
+        },
+        subject: 'Verify Your Email - DOAC Perks',
+        text: `Hi ${firstName},\n\nWelcome to DOAC Perks! Please verify your email address by clicking the link below:\n\n${verifyUrl}\n\nThis link will expire in 24 hours.\n\nIf you did not create an account, please ignore this email.`,
+        html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+              line-height: 1.6;
+              color: #ffffff;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 0;
+              background-color: #000000;
+            }
+            .container {
+              background-color: #0D0D0D;
+              border: 1px solid #333333;
+              border-radius: 0;
+              padding: 0;
+            }
+            .logo-header {
+              text-align: center;
+              padding: 40px 20px 30px;
+              background-color: #000000;
+            }
+            .logo-header img {
+              width: 80px;
+              height: 80px;
+            }
+            .content {
+              padding: 30px 40px;
+              text-align: center;
+            }
+            h1 {
+              color: #ffffff;
+              margin: 0 0 20px 0;
+              font-size: 24px;
+              font-weight: 600;
+              text-align: center;
+            }
+            p {
+              color: #cccccc;
+              margin: 16px auto;
+              font-size: 15px;
+              text-align: center;
+            }
+            .greeting {
+              font-size: 18px;
+              color: #ffffff;
+              margin-bottom: 20px;
+            }
+            .verify-button {
+              display: inline-block;
+              margin: 30px auto;
+              padding: 14px 32px;
+              background: #0D0D0D;
+              background-clip: padding-box;
+              border: 2px solid transparent;
+              border-radius: 8px;
+              background-image: linear-gradient(#0D0D0D, #0D0D0D), linear-gradient(135deg, #919191 0%, #5A2F30 100%);
+              background-origin: border-box;
+              background-clip: padding-box, border-box;
+              color: #ffffff !important;
+              text-align: center;
+              text-decoration: none;
+              font-size: 16px;
+              font-weight: 600;
+            }
+            .expiry-notice {
+              text-align: center;
+              color: #999999;
+              font-size: 14px;
+              margin: 20px 0;
+            }
+            .expiry-notice strong {
+              color: #ffffff;
+            }
+            .info-box {
+              background-color: #1a1a1a;
+              border-left: 3px solid #5A2F30;
+              padding: 16px;
+              margin: 25px auto;
+              max-width: 500px;
+              color: #cccccc;
+              font-size: 14px;
+              text-align: center;
+            }
+            .alt-link {
+              background-color: #1a1a1a;
+              border: 1px solid #333333;
+              border-radius: 8px;
+              padding: 16px;
+              margin: 25px auto;
+              max-width: 500px;
+              word-break: break-all;
+              text-align: center;
+            }
+            .alt-link p {
+              margin: 0 0 10px 0;
+              font-size: 13px;
+              color: #999999;
+              text-align: center;
+            }
+            .alt-link a {
+              color: #ffffff;
+              font-size: 12px;
+              text-decoration: underline;
+            }
+            .footer {
+              margin-top: 40px;
+              padding: 20px 40px 30px;
+              border-top: 1px solid #333333;
+              font-size: 13px;
+              color: #666666;
+              text-align: center;
+            }
+            .footer p {
+              margin: 8px 0;
+              color: #666666;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="logo-header">
+              <img src="https://storage.googleapis.com/doac-perks/doac-icon.png" alt="DOAC" />
+            </div>
+
+            <div class="content">
+              <h1>Welcome to DOAC Perks!</h1>
+
+              <p class="greeting">Hi ${firstName},</p>
+
+              <p>Thanks for signing up! Please verify your email address to unlock all features, including prize redemption.</p>
+
+              <a href="${verifyUrl}" class="verify-button">Verify My Email</a>
+
+              <p class="expiry-notice">
+                This link will expire in <strong>24 hours</strong>.
+              </p>
+
+              <div class="info-box">
+                <strong>Why verify?</strong> Email verification is required to redeem prizes and ensures your rewards are sent to the right place.
+              </div>
+
+              <div class="alt-link">
+                <p><strong>Button not working?</strong></p>
+                <p>Copy and paste this link into your browser:</p>
+                <a href="${verifyUrl}">${verifyUrl}</a>
+              </div>
+            </div>
+
+            <div class="footer">
+              <p>This is an automated message from DOAC Perks.</p>
+              <p>Please do not reply to this email.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+      });
+
+      console.log(`✅ Verification email sent to ${email} via SendGrid`);
+      return;
+    } catch (error) {
+      console.error('❌ Failed to send verification email via SendGrid:', error);
+      throw error;
+    }
+  }
+
+  // Fallback to SMTP
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.log('Skipping verification email - email not configured');
+    return;
+  }
+
+  try {
+    await transporter.sendMail({
+      from: `"DOAC Team" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Verify Your Email - DOAC Perks',
+      text: `Hi ${firstName},\n\nWelcome to DOAC Perks! Please verify your email address by clicking the link below:\n\n${verifyUrl}\n\nThis link will expire in 24 hours.\n\nIf you did not create an account, please ignore this email.`,
+      html: `<h2>Welcome to DOAC Perks!</h2><p>Hi ${firstName},</p><p>Please verify your email by clicking the link below:</p><a href="${verifyUrl}">Verify Email</a><p>This link expires in 24 hours.</p>`
+    });
+    console.log(`✅ Verification email sent to ${email} via SMTP`);
+  } catch (error) {
+    console.error('❌ Failed to send verification email:', error);
+    throw error;
+  }
+};
+
+/**
+ * Send email when someone tries to register with an existing email
+ * This prevents email enumeration while being helpful to legitimate users
+ */
+export const sendAccountExistsEmail = async (email: string, firstName: string, loginUrl: string, resetUrl: string) => {
+  if (sendgridApiKey) {
+    const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'innovation@flightstory.com';
+    try {
+      await sgMail.send({
+        to: email,
+        from: {
+          email: fromEmail,
+          name: 'DOAC Team'
+        },
+        subject: 'Sign In to Your DOAC Perks Account',
+        text: `Hi ${firstName},\n\nSomeone (hopefully you!) tried to create a DOAC Perks account with this email address, but you already have an account.\n\nTo sign in: ${loginUrl}\n\nForgot your password? Reset it here: ${resetUrl}\n\nIf you didn't try to create an account, you can safely ignore this email.`,
+        html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #ffffff; max-width: 600px; margin: 0 auto; padding: 0; background-color: #000000; }
+            .container { background-color: #0D0D0D; border: 1px solid #333333; padding: 0; }
+            .logo-header { text-align: center; padding: 40px 20px 30px; background-color: #000000; }
+            .logo-header img { width: 80px; height: 80px; }
+            .content { padding: 30px 40px; text-align: center; }
+            h1 { color: #ffffff; margin: 0 0 20px 0; font-size: 24px; font-weight: 600; }
+            p { color: #cccccc; margin: 16px auto; font-size: 15px; }
+            .greeting { font-size: 18px; color: #ffffff; margin-bottom: 20px; }
+            .button { display: inline-block; margin: 15px 8px; padding: 14px 32px; background: #0D0D0D; border: 2px solid transparent; border-radius: 8px; background-image: linear-gradient(#0D0D0D, #0D0D0D), linear-gradient(135deg, #919191 0%, #5A2F30 100%); background-origin: border-box; background-clip: padding-box, border-box; color: #ffffff !important; text-decoration: none; font-size: 16px; font-weight: 600; }
+            .secondary-link { color: #999999; font-size: 14px; }
+            .secondary-link a { color: #ffffff; }
+            .footer { margin-top: 40px; padding: 20px 40px 30px; border-top: 1px solid #333333; font-size: 13px; color: #666666; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="logo-header">
+              <img src="https://storage.googleapis.com/doac-perks/doac-icon.png" alt="DOAC" />
+            </div>
+            <div class="content">
+              <h1>You Already Have an Account</h1>
+              <p class="greeting">Hi ${firstName},</p>
+              <p>Someone (hopefully you!) tried to create a DOAC Perks account with this email address, but you already have an account.</p>
+              <a href="${loginUrl}" class="button">Sign In</a>
+              <p class="secondary-link">Forgot your password? <a href="${resetUrl}">Reset it here</a></p>
+              <p style="color: #666666; font-size: 13px; margin-top: 30px;">If you didn't try to create an account, you can safely ignore this email.</p>
+            </div>
+            <div class="footer">
+              <p>This is an automated message from DOAC Perks.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+      });
+      console.log(`📨 Account exists email sent to ${email} via SendGrid`);
+      return;
+    } catch (error) {
+      console.error('❌ Failed to send account exists email via SendGrid:', error);
+      throw error;
+    }
+  }
+
+  // Fallback to SMTP
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.log('Skipping account exists email - email not configured');
+    return;
+  }
+
+  try {
+    await transporter.sendMail({
+      from: `"DOAC Team" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Sign In to Your DOAC Perks Account',
+      text: `Hi ${firstName},\n\nYou already have a DOAC Perks account. Sign in here: ${loginUrl}\n\nForgot your password? ${resetUrl}`,
+      html: `<h2>You Already Have an Account</h2><p>Hi ${firstName},</p><p>You already have a DOAC Perks account.</p><p><a href="${loginUrl}">Sign In</a> | <a href="${resetUrl}">Reset Password</a></p>`
+    });
+    console.log(`📨 Account exists email sent to ${email} via SMTP`);
+  } catch (error) {
+    console.error('❌ Failed to send account exists email:', error);
+    throw error;
+  }
+};
+
 export const sendPurchaseNotification = async (data: PurchaseNotificationData) => {
   const transporter = createTransporter();
 

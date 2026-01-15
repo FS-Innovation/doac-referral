@@ -155,6 +155,15 @@ CREATE INDEX IF NOT EXISTS idx_prize_codes_claimed_by ON prize_codes(claimed_by)
 CREATE INDEX IF NOT EXISTS idx_user_prize_claims_user_id ON user_prize_claims(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_prize_claims_tier_id ON user_prize_claims(tier_id);
 
+-- Email verification columns (added for existing databases)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR(64);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token_expires TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_sent_at TIMESTAMP;
+
+-- Index for verification token lookup
+CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token) WHERE verification_token IS NOT NULL;
+
 -- Seed initial prize tiers with Klaviyo reward tier codes
 -- TIER 1: Discount codes (Shopify single-use codes)
 -- TIER 2: Physical products
