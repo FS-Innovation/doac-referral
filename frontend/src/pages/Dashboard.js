@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { userAPI, episodesAPI, prizeAPI } from '../services/api';
+import SplitFlapCounter from '../components/SplitFlapCounter';
 import {
   buildReferralUrl,
   getYouTubeThumbnail,
@@ -11,7 +12,7 @@ import {
 } from '../utils/episode';
 
 const Dashboard = () => {
-  const { user, emailVerified, resendVerificationEmail } = useAuth();
+  const { user, emailVerified, resendVerificationEmail, updateUserPoints, refreshUser } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -56,6 +57,30 @@ const Dashboard = () => {
   const [cardTilt, setCardTilt] = useState({ rotateX: 0, rotateY: 0 });
   const [glowOffset, setGlowOffset] = useState({ x: 0, y: 0 });
   const [glowIntensity, setGlowIntensity] = useState(0); // 0-1 based on tilt amount
+
+  // Dev test mode - triple click on TOTAL POINTS to reveal
+  const [devTestMode, setDevTestMode] = useState(false);
+  const clickCountRef = useRef(0);
+  const clickTimerRef = useRef(null);
+
+  const handleTotalPointsClick = () => {
+    clickCountRef.current += 1;
+    if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+
+    if (clickCountRef.current >= 3) {
+      setDevTestMode(prev => !prev);
+      clickCountRef.current = 0;
+    } else {
+      clickTimerRef.current = setTimeout(() => {
+        clickCountRef.current = 0;
+      }, 500);
+    }
+  };
+
+  const handleTestPoints = (amount) => {
+    const newPoints = Math.max(0, user.points + amount);
+    updateUserPoints(newPoints);
+  };
 
   // Handle resend verification email
   const handleResendVerification = async () => {
@@ -191,6 +216,27 @@ const Dashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Live update polling - check for point changes every 30 seconds
+  // This triggers the split-flap animation when someone uses the referral code
+  useEffect(() => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const updatedUser = await refreshUser();
+        if (updatedUser && updatedUser.points !== user?.points) {
+          // Points changed! The split-flap counter will animate automatically
+          console.log('Points updated:', user?.points, '->', updatedUser.points);
+          // Also refresh prize tiers to update unlock status
+          loadPrizeTiers();
+        }
+      } catch (error) {
+        // Silent fail - don't spam console with polling errors
+      }
+    }, 30000); // Poll every 30 seconds
+
+    return () => clearInterval(pollInterval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.points]);
+
   const loadPrizeTiers = async () => {
     setPrizesLoading(true);
     try {
@@ -223,15 +269,14 @@ const Dashboard = () => {
       setClaimSuccess(response.data);
       setSelectedPrize({ ...tier, claimedCode: response.data.prize.code });
 
-      // Update local points display immediately
+      // Update points in auth context immediately (triggers split-flap animation)
       if (response.data.newPointsBalance !== undefined) {
         setUserPoints(response.data.newPointsBalance);
+        updateUserPoints(response.data.newPointsBalance);
       }
 
       // Refresh prize tiers to update status
       await loadPrizeTiers();
-      // Also refresh stats to update the main points display
-      await loadStats();
     } catch (error) {
       console.error('Failed to redeem prize:', error);
       alert(error.response?.data?.error || 'Failed to redeem prize');
@@ -719,36 +764,103 @@ const Dashboard = () => {
         justifyContent: 'center',
         marginBottom: isMobile ? '4rem' : '6rem'
       }}>
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center'
-        }}>
-          <div style={{
-            color: '#FFF',
-            textAlign: 'center',
-            fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-            fontSize: isMobile ? '0.8125rem' : '0.9375rem',
-            fontStyle: 'normal',
-            fontWeight: '600',
-            lineHeight: '1.25rem',
-            letterSpacing: '0',
-            marginBottom: isMobile ? '2rem' : '3.25rem'
-          }}>
-            TOTAL POINTS
-          </div>
-          <div style={{
-            color: '#FFF',
-            textAlign: 'center',
-            fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-            fontSize: isMobile ? '3.5rem' : '6.25rem',
-            fontStyle: 'normal',
-            fontWeight: '500',
-            lineHeight: isMobile ? '1.5rem' : '1.875rem',
-            letterSpacing: '0'
-          }}>
-            {user.points.toLocaleString()}
-          </div>
+        <div
+          onClick={handleTotalPointsClick}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            cursor: 'default',
+            userSelect: 'none'
+          }}
+        >
+          <SplitFlapCounter
+            value={user.points}
+            fontSize={isMobile ? '3rem' : '5rem'}
+            isMobile={isMobile}
+          />
+          {/* Dev test buttons - triple click TOTAL POINTS to reveal */}
+          {devTestMode && (
+            <div style={{
+              display: 'flex',
+              gap: '10px',
+              marginTop: '20px',
+              padding: '10px',
+              background: 'rgba(255,255,255,0.1)',
+              borderRadius: '8px'
+            }}>
+              <button
+                onClick={() => handleTestPoints(-500)}
+                style={{
+                  padding: '8px 16px',
+                  background: '#dc3545',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                -500
+              </button>
+              <button
+                onClick={() => handleTestPoints(-100)}
+                style={{
+                  padding: '8px 16px',
+                  background: '#dc3545',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                -100
+              </button>
+              <button
+                onClick={() => handleTestPoints(100)}
+                style={{
+                  padding: '8px 16px',
+                  background: '#28a745',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                +100
+              </button>
+              <button
+                onClick={() => handleTestPoints(500)}
+                style={{
+                  padding: '8px 16px',
+                  background: '#28a745',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                +500
+              </button>
+              <button
+                onClick={() => handleTestPoints(1000)}
+                style={{
+                  padding: '8px 16px',
+                  background: '#28a745',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                +1000
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

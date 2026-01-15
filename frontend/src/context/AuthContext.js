@@ -256,6 +256,31 @@ export const AuthProvider = ({ children }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  // Refresh user data (e.g., after points change)
+  const refreshUser = async () => {
+    try {
+      const response = await authAPI.getProfile();
+      const userData = response.data;
+      if (userData && userData.id && userData.email && userData.referralCode) {
+        setUser(userData);
+        saveSessionBackup(userData);
+        return userData;
+      }
+    } catch (error) {
+      console.error('Failed to refresh user:', error);
+    }
+    return null;
+  };
+
+  // Update user points locally (for immediate UI feedback)
+  const updateUserPoints = (newPoints) => {
+    if (user) {
+      const updatedUser = { ...user, points: newPoints };
+      setUser(updatedUser);
+      saveSessionBackup(updatedUser);
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -265,6 +290,8 @@ export const AuthProvider = ({ children }) => {
     forgotPassword,
     validateResetToken,
     resetPassword,
+    refreshUser,
+    updateUserPoints,
     isAuthenticated: !!user,
     isAdmin: user?.isAdmin || false,
     emailVerified,
