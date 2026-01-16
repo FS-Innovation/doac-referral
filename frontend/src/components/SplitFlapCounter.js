@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 /**
- * DOAC Points Counter - Igloo.inc / Awwwards Level
- * Featuring: Text scramble, chromatic aberration, particle burst, glitch effects
- * SLOWED DOWN for maximum anticipation
+ * DOAC Points Counter - CRT Monitor Edition
+ * Real retro CRT effects: scan lines, flicker, noise
  */
 
 const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
@@ -12,19 +11,25 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
   const [scrambleText, setScrambleText] = useState('');
   const [showGlitch, setShowGlitch] = useState(false);
   const [particles, setParticles] = useState([]);
+  const [staticNoise, setStaticNoise] = useState([]);
+  const [glitchChar, setGlitchChar] = useState(null);
+  const [flickerOpacity, setFlickerOpacity] = useState(1);
+  const [noiseOffset, setNoiseOffset] = useState({ x: 0, y: 0 });
+  const [scanLinePos, setScanLinePos] = useState(0);
   const prevValueRef = useRef(value);
   const containerRef = useRef(null);
+  const flickerIntervalRef = useRef(null);
+  const staticIntervalRef = useRef(null);
+  const scanAnimationRef = useRef(null);
 
-  // BIGGER font size multiplier
   const fontSizeValue = parseFloat(fontSize) * 1.25;
   const fontSizeUnit = fontSize.replace(/[\d.]/g, '') || 'rem';
 
   const formatNumber = (num) => num.toLocaleString('en-US');
 
-  // Scramble characters for the effect
-  const scrambleChars = '0123456789!@#$%&*';
+  // Only numbers for scramble - no special characters
+  const scrambleChars = '0123456789';
 
-  // Generate random scramble text
   const getScrambleText = useCallback((targetText) => {
     return targetText.split('').map(char => {
       if (char === ',') return ',';
@@ -32,7 +37,6 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
     }).join('');
   }, []);
 
-  // Create particle burst
   const createParticles = useCallback(() => {
     const newParticles = [];
     const particleCount = isMobile ? 15 : 25;
@@ -48,12 +52,99 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
       });
     }
     setParticles(newParticles);
-
-    // Fade out particles - SLOWER
     setTimeout(() => setParticles([]), 1500);
   }, [isMobile]);
 
-  // Main animation sequence - SLOWED DOWN
+  // Create realistic static noise particles
+  const createStaticNoise = useCallback(() => {
+    const noise = [];
+    const count = isMobile ? 40 : 80;
+    for (let i = 0; i < count; i++) {
+      noise.push({
+        id: i,
+        x: Math.random() * 100,
+        y: Math.random() * 100,
+        width: Math.random() * 3 + 1,
+        height: Math.random() > 0.7 ? Math.random() * 8 + 2 : Math.random() * 2 + 1,
+        opacity: Math.random() * 0.4 + 0.1,
+        isLine: Math.random() > 0.85,
+      });
+    }
+    return noise;
+  }, [isMobile]);
+
+  // Occasional glitch character overlay
+  const glitchChars = '█▓▒░╔╗╚╝║═┌┐└┘│─';
+  const triggerGlitchChar = useCallback(() => {
+    if (Math.random() > 0.6) {
+      const char = glitchChars[Math.floor(Math.random() * glitchChars.length)];
+      const x = 20 + Math.random() * 60;
+      const y = 20 + Math.random() * 60;
+      setGlitchChar({ char, x, y, id: Date.now() });
+      setTimeout(() => setGlitchChar(null), 80 + Math.random() * 120);
+    }
+  }, []);
+
+  // CRT Flicker effect during animation
+  useEffect(() => {
+    if (isAnimating) {
+      // Flicker and jitter
+      flickerIntervalRef.current = setInterval(() => {
+        setFlickerOpacity(0.92 + Math.random() * 0.08);
+        setNoiseOffset({
+          x: (Math.random() - 0.5) * 2,
+          y: (Math.random() - 0.5) * 1
+        });
+        triggerGlitchChar();
+      }, 50);
+
+      // Static noise regeneration
+      staticIntervalRef.current = setInterval(() => {
+        setStaticNoise(createStaticNoise());
+      }, 60);
+
+      // Smooth scan line animation
+      let startTime = null;
+      const animateScan = (timestamp) => {
+        if (!startTime) startTime = timestamp;
+        const elapsed = timestamp - startTime;
+        const duration = 1800; // ms for one sweep
+        const progress = (elapsed % duration) / duration;
+        setScanLinePos(progress * 110 - 5); // -5% to 105%
+        scanAnimationRef.current = requestAnimationFrame(animateScan);
+      };
+      scanAnimationRef.current = requestAnimationFrame(animateScan);
+
+      // Initial static
+      setStaticNoise(createStaticNoise());
+    } else {
+      if (flickerIntervalRef.current) {
+        clearInterval(flickerIntervalRef.current);
+      }
+      if (staticIntervalRef.current) {
+        clearInterval(staticIntervalRef.current);
+      }
+      if (scanAnimationRef.current) {
+        cancelAnimationFrame(scanAnimationRef.current);
+      }
+      setFlickerOpacity(1);
+      setNoiseOffset({ x: 0, y: 0 });
+      setStaticNoise([]);
+      setGlitchChar(null);
+    }
+    return () => {
+      if (flickerIntervalRef.current) {
+        clearInterval(flickerIntervalRef.current);
+      }
+      if (staticIntervalRef.current) {
+        clearInterval(staticIntervalRef.current);
+      }
+      if (scanAnimationRef.current) {
+        cancelAnimationFrame(scanAnimationRef.current);
+      }
+    };
+  }, [isAnimating, createStaticNoise, triggerGlitchChar]);
+
   useEffect(() => {
     if (value !== prevValueRef.current) {
       const targetText = formatNumber(value);
@@ -61,9 +152,8 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
       setShowGlitch(true);
       createParticles();
 
-      // Scramble phase - SLOWER (80ms intervals, 12 iterations)
       let scrambleCount = 0;
-      const maxScrambles = 12;
+      const maxScrambles = 14;
       const scrambleInterval = setInterval(() => {
         setScrambleText(getScrambleText(targetText));
         scrambleCount++;
@@ -72,16 +162,13 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
           setScrambleText('');
           setDisplayValue(value);
         }
-      }, 80);
+      }, 70);
 
-      // End glitch effect - SLOWER
-      setTimeout(() => setShowGlitch(false), 600);
-
-      // End animation state - SLOWER
+      setTimeout(() => setShowGlitch(false), 700);
       setTimeout(() => {
         setIsAnimating(false);
         prevValueRef.current = value;
-      }, 1200);
+      }, 1400);
 
       return () => clearInterval(scrambleInterval);
     }
@@ -104,6 +191,18 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
     color: '#FFFFFF',
   };
 
+  // Generate CSS for scan lines
+  const scanLinesStyle = {
+    backgroundImage: `repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.15),
+      rgba(0, 0, 0, 0.15) 1px,
+      transparent 1px,
+      transparent 2px
+    )`,
+    backgroundSize: '100% 2px',
+  };
+
   return (
     <div
       ref={containerRef}
@@ -115,6 +214,208 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
         padding: isMobile ? '2rem 2.5rem' : '2.5rem 4rem',
       }}
     >
+      {/* CRT Monitor Frame - 3D curved screen effect */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: isMobile ? '-12px' : '-18px',
+          background: isAnimating
+            ? 'radial-gradient(ellipse 120% 100% at center, rgba(15, 15, 20, 0.97) 0%, rgba(5, 5, 10, 0.99) 70%, rgba(0, 0, 5, 1) 100%)'
+            : 'transparent',
+          borderRadius: isMobile ? '20px' : '28px',
+          opacity: isAnimating ? 1 : 0,
+          transition: 'opacity 0.3s ease',
+          overflow: 'hidden',
+          // 3D curved screen illusion
+          boxShadow: isAnimating ? `
+            inset 0 0 80px rgba(0, 0, 0, 0.9),
+            inset 0 0 40px rgba(0, 0, 0, 0.5),
+            inset 2px 2px 20px rgba(255, 255, 255, 0.03),
+            inset -2px -2px 20px rgba(0, 0, 0, 0.8),
+            0 0 60px rgba(255, 255, 255, 0.03),
+            0 4px 20px rgba(0, 0, 0, 0.5)
+          ` : 'none',
+          // Subtle 3D perspective
+          transform: isAnimating ? 'perspective(800px) rotateX(1deg)' : 'none',
+        }}
+      >
+        {/* Glass reflection on curved screen */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: `
+              linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.04) 0%,
+                transparent 40%,
+                transparent 60%,
+                rgba(255, 255, 255, 0.02) 100%
+              )
+            `,
+            borderRadius: 'inherit',
+            pointerEvents: 'none',
+            zIndex: 15,
+          }}
+        />
+
+        {/* Scan lines overlay */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            ...scanLinesStyle,
+            opacity: isAnimating ? 0.5 : 0,
+            pointerEvents: 'none',
+            zIndex: 10,
+          }}
+        />
+
+        {/* Screen edge vignette - stronger for 3D depth */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: `
+              radial-gradient(ellipse 80% 70% at center, transparent 30%, rgba(0, 0, 0, 0.4) 70%, rgba(0, 0, 0, 0.85) 100%)
+            `,
+            opacity: isAnimating ? 1 : 0,
+            pointerEvents: 'none',
+            zIndex: 8,
+          }}
+        />
+
+        {/* 3D Scan bar with glow and depth */}
+        {isAnimating && (
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: `${scanLinePos}%`,
+              height: '12px',
+              background: `
+                linear-gradient(180deg,
+                  transparent 0%,
+                  rgba(255, 255, 255, 0.03) 20%,
+                  rgba(255, 255, 255, 0.08) 45%,
+                  rgba(200, 220, 255, 0.15) 50%,
+                  rgba(255, 255, 255, 0.08) 55%,
+                  rgba(255, 255, 255, 0.03) 80%,
+                  transparent 100%
+                )
+              `,
+              boxShadow: `
+                0 0 20px rgba(200, 220, 255, 0.2),
+                0 0 40px rgba(200, 220, 255, 0.1),
+                0 0 60px rgba(200, 220, 255, 0.05)
+              `,
+              pointerEvents: 'none',
+              zIndex: 11,
+            }}
+          />
+        )}
+
+        {/* Secondary subtle scan line */}
+        {isAnimating && (
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: `${(scanLinePos + 50) % 110}%`,
+              height: '4px',
+              background: `
+                linear-gradient(180deg,
+                  transparent 0%,
+                  rgba(255, 255, 255, 0.02) 40%,
+                  rgba(255, 255, 255, 0.04) 50%,
+                  rgba(255, 255, 255, 0.02) 60%,
+                  transparent 100%
+                )
+              `,
+              pointerEvents: 'none',
+              zIndex: 11,
+              opacity: 0.6,
+            }}
+          />
+        )}
+
+        {/* Realistic static noise particles */}
+        {isAnimating && staticNoise.map(particle => (
+          <div
+            key={particle.id}
+            style={{
+              position: 'absolute',
+              left: `${particle.x}%`,
+              top: `${particle.y}%`,
+              width: particle.isLine ? `${particle.width + 10}px` : `${particle.width}px`,
+              height: `${particle.height}px`,
+              background: particle.isLine
+                ? 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent)'
+                : `rgba(255, 255, 255, ${particle.opacity})`,
+              pointerEvents: 'none',
+              zIndex: 12,
+            }}
+          />
+        ))}
+
+        {/* Occasional glitch character */}
+        {glitchChar && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${glitchChar.x}%`,
+              top: `${glitchChar.y}%`,
+              fontSize: isMobile ? '1rem' : '1.5rem',
+              fontFamily: 'monospace',
+              color: `rgba(255, 255, 255, ${0.3 + Math.random() * 0.4})`,
+              textShadow: '0 0 5px rgba(255, 255, 255, 0.5)',
+              pointerEvents: 'none',
+              zIndex: 13,
+              transform: `rotate(${Math.random() * 20 - 10}deg)`,
+            }}
+          >
+            {glitchChar.char}
+          </div>
+        )}
+
+        {/* RGB pixel grid effect */}
+        {isAnimating && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: `repeating-linear-gradient(
+                90deg,
+                rgba(255, 0, 0, 0.015) 0px,
+                rgba(255, 0, 0, 0.015) 1px,
+                rgba(0, 255, 0, 0.015) 1px,
+                rgba(0, 255, 0, 0.015) 2px,
+                rgba(0, 0, 255, 0.015) 2px,
+                rgba(0, 0, 255, 0.015) 3px
+              )`,
+              opacity: 0.5,
+              pointerEvents: 'none',
+              zIndex: 9,
+            }}
+          />
+        )}
+
+        {/* Phosphor persistence / ghosting effect */}
+        {isAnimating && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'radial-gradient(ellipse at center, rgba(200, 220, 255, 0.02) 0%, transparent 70%)',
+              pointerEvents: 'none',
+              zIndex: 7,
+            }}
+          />
+        )}
+      </div>
+
       {/* Particle burst effect */}
       {particles.map(p => (
         <div
@@ -132,12 +433,12 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
             transform: `translate(${p.vx}px, ${p.vy}px)`,
             transition: 'transform 1.5s cubic-bezier(0.23, 1, 0.32, 1), opacity 1.5s ease-out',
             pointerEvents: 'none',
-            zIndex: 10,
+            zIndex: 20,
           }}
         />
       ))}
 
-      {/* Chromatic aberration layers - only during animation */}
+      {/* Chromatic aberration */}
       {showGlitch && (
         <>
           <div
@@ -147,13 +448,13 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'rgba(255, 0, 0, 0.4)',
+              color: 'rgba(255, 50, 50, 0.5)',
               fontSize: `${fontSizeValue}${fontSizeUnit}`,
               fontWeight: '600',
               fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-              transform: 'translateX(-4px)',
+              transform: `translateX(${-4 + noiseOffset.x}px)`,
               pointerEvents: 'none',
-              zIndex: 5,
+              zIndex: 15,
               mixBlendMode: 'screen',
             }}
           >
@@ -166,13 +467,13 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'rgba(0, 255, 255, 0.4)',
+              color: 'rgba(50, 255, 255, 0.5)',
               fontSize: `${fontSizeValue}${fontSizeUnit}`,
               fontWeight: '600',
               fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-              transform: 'translateX(4px)',
+              transform: `translateX(${4 + noiseOffset.x}px)`,
               pointerEvents: 'none',
-              zIndex: 5,
+              zIndex: 15,
               mixBlendMode: 'screen',
             }}
           >
@@ -181,7 +482,7 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
         </>
       )}
 
-      {/* Background glow pulse */}
+      {/* Background glow */}
       <div
         style={{
           position: 'absolute',
@@ -191,7 +492,7 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
           width: isAnimating ? '220%' : '130%',
           height: isAnimating ? '280%' : '160%',
           background: `radial-gradient(ellipse at center,
-            ${isAnimating ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.03)'} 0%,
+            ${isAnimating ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.03)'} 0%,
             transparent 70%)`,
           transition: 'all 1s cubic-bezier(0.16, 1, 0.3, 1)',
           pointerEvents: 'none',
@@ -199,37 +500,20 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
         }}
       />
 
-      {/* Scan line effect - SLOWER */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: '-10%',
-          right: '-10%',
-          height: '3px',
-          background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.9), transparent)',
-          opacity: isAnimating ? 1 : 0,
-          transform: `translateY(${isAnimating ? '500%' : '0'})`,
-          transition: isAnimating
-            ? 'transform 0.8s ease-in-out, opacity 0.15s ease'
-            : 'opacity 0.5s ease',
-          pointerEvents: 'none',
-          zIndex: 15,
-          boxShadow: '0 0 20px rgba(255,255,255,0.8)',
-        }}
-      />
-
       {/* Main content */}
       <div
         style={{
           position: 'relative',
-          zIndex: 1,
+          zIndex: 5,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
+          opacity: flickerOpacity,
+          transform: `translate(${noiseOffset.x}px, ${noiseOffset.y}px)`,
+          transition: isAnimating ? 'none' : 'opacity 0.3s ease, transform 0.3s ease',
         }}
       >
-        {/* Top label with reveal animation */}
+        {/* Top label */}
         <div
           style={{
             fontSize: isMobile ? '0.6875rem' : '0.75rem',
@@ -240,24 +524,11 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
             color: 'rgba(255, 255, 255, 0.4)',
             marginBottom: isMobile ? '1rem' : '1.5rem',
             position: 'relative',
+            textShadow: isAnimating ? '0 0 10px rgba(255, 255, 255, 0.5)' : 'none',
+            transition: 'text-shadow 0.3s ease',
           }}
         >
-          <span style={{ position: 'relative' }}>
-            Total Points
-            {/* Underline accent */}
-            <span
-              style={{
-                position: 'absolute',
-                bottom: '-6px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                width: isAnimating ? '100%' : '30%',
-                height: '1px',
-                background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent)',
-                transition: 'width 0.8s cubic-bezier(0.16, 1, 0.3, 1)',
-              }}
-            />
-          </span>
+          Total Points
         </div>
 
         {/* Digits */}
@@ -267,7 +538,7 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            filter: showGlitch ? 'blur(0.8px)' : 'none',
+            filter: showGlitch ? 'blur(0.5px)' : 'none',
             transition: 'filter 0.2s ease',
           }}
         >
@@ -306,7 +577,6 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
                   display: 'inline-block',
                 }}
               >
-                {/* Rolling digit strip */}
                 <div
                   style={{
                     position: 'absolute',
@@ -318,7 +588,16 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
                   }}
                 >
                   {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-                    <div key={n} style={digitStyle}>
+                    <div
+                      key={n}
+                      style={{
+                        ...digitStyle,
+                        textShadow: isAnimating
+                          ? '0 0 20px rgba(255, 255, 255, 0.6), 0 0 40px rgba(255, 255, 255, 0.3)'
+                          : 'none',
+                        transition: 'text-shadow 0.3s ease',
+                      }}
+                    >
                       {n}
                     </div>
                   ))}
@@ -356,46 +635,10 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
           })}
         </div>
 
-        {/* Bottom accent bar */}
-        <div
-          style={{
-            marginTop: isMobile ? '1.25rem' : '1.75rem',
-            width: '100%',
-            height: '2px',
-            position: 'relative',
-            borderRadius: '1px',
-            overflow: 'hidden',
-          }}
-        >
-          {/* Static base */}
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'rgba(255, 255, 255, 0.08)',
-            }}
-          />
-          {/* Animated fill - SLOWER */}
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              left: 0,
-              width: isAnimating ? '100%' : '0%',
-              background: 'linear-gradient(90deg, rgba(255,255,255,0.5), rgba(255,255,255,0.9), rgba(255,255,255,0.5))',
-              transition: isAnimating
-                ? 'width 1s cubic-bezier(0.16, 1, 0.3, 1)'
-                : 'width 0.5s ease-out',
-              boxShadow: '0 0 15px rgba(255,255,255,0.6)',
-            }}
-          />
-        </div>
-
         {/* Micro text */}
         <div
           style={{
-            marginTop: isMobile ? '0.875rem' : '1.125rem',
+            marginTop: isMobile ? '1.25rem' : '1.75rem',
             fontSize: isMobile ? '0.5625rem' : '0.6875rem',
             fontWeight: '400',
             fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
