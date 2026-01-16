@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 /**
- * DOAC Points Counter - Cinematic Edition
- * Premium documentary trailer aesthetic with subtle film grain and light effects
+ * DOAC Points Counter - Award-Winning Interactive Edition
+ * Mouse-reactive environment with digit-specific glitching
+ * Background follows mouse, digits glitch only on direct hover
  */
 
 const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
@@ -16,61 +17,430 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
   const [filmGrain, setFilmGrain] = useState([]);
   const [lightLeak, setLightLeak] = useState({ active: false, x: 0, intensity: 0 });
   const [glitchFragments, setGlitchFragments] = useState([]);
+
+  // Advanced interaction state
+  const [isHovering, setIsHovering] = useState(false);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [rawMousePos, setRawMousePos] = useState({ x: 0, y: 0 }); // Actual pixel position
+  const [mouseVelocity, setMouseVelocity] = useState({ x: 0, y: 0 });
+  const [displacement, setDisplacement] = useState(0);
+  const [chromaticOffset, setChromaticOffset] = useState({ r: 0, g: 0, b: 0 });
+  const [magneticPull, setMagneticPull] = useState({ x: 0, y: 0 });
+  const [wavePhase, setWavePhase] = useState(0);
+
+  // Per-digit hover state for character glitching
+  const [hoveredDigitIndex, setHoveredDigitIndex] = useState(-1);
+  const [digitGlitchChars, setDigitGlitchChars] = useState({});
+  const [staticParticles, setStaticParticles] = useState([]);
+  const [ambientScanPos, setAmbientScanPos] = useState(-10);
+  const [ambientScanActive, setAmbientScanActive] = useState(false);
+
   const prevValueRef = useRef(value);
   const containerRef = useRef(null);
+  const digitsRef = useRef(null);
   const animationRef = useRef(null);
+  const hoverAnimationRef = useRef(null);
+  const animationQueueRef = useRef([]);
+  const isProcessingRef = useRef(false);
+  const lastMousePos = useRef({ x: 0, y: 0 });
+  const lastMouseTime = useRef(Date.now());
+  const velocitySmooth = useRef({ x: 0, y: 0 });
+  const digitGlitchTimers = useRef({});
 
   const fontSizeValue = parseFloat(fontSize) * 1.25;
   const fontSizeUnit = fontSize.replace(/[\d.]/g, '') || 'rem';
-
   const formatNumber = (num) => num.toLocaleString('en-US');
-
-  // Only numbers for scramble
   const scrambleChars = '0123456789';
+  const glitchChars = '0123456789@#$%&*!?░▒▓█▀▄';
 
   const getScrambleText = useCallback((targetText) => {
     return targetText.split('').map(char => {
       if (char === ',') return ',';
-      return scrambleChars[Math.floor(Math.random() * scrambleChars.length)];
+      // Use glitch characters for the scramble animation (matching hover effect)
+      return glitchChars[Math.floor(Math.random() * glitchChars.length)];
     }).join('');
   }, []);
 
-  // Cinematic film grain - subtle, organic dots
-  const createFilmGrain = useCallback(() => {
-    const grains = [];
-    const count = isMobile ? 12 : 20;
+  // Get a random glitch character for digit hover effect
+  const getGlitchChar = useCallback(() => {
+    return glitchChars[Math.floor(Math.random() * glitchChars.length)];
+  }, []);
+
+  // Create static particles that follow mouse
+  const createStaticParticles = useCallback((centerX, centerY, velocity) => {
+    const particles = [];
+    const count = Math.min(12 + Math.floor(velocity * 2), 25);
+    const spread = 80 + velocity * 15;
+
     for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = Math.random() * spread;
+      particles.push({
+        id: i,
+        x: centerX + Math.cos(angle) * distance,
+        y: centerY + Math.sin(angle) * distance,
+        size: Math.random() * 2.5 + 0.5,
+        opacity: Math.random() * 0.4 + 0.1,
+        char: Math.random() > 0.7 ? glitchChars[Math.floor(Math.random() * glitchChars.length)] : null,
+        lifetime: Math.random() * 0.5 + 0.3,
+      });
+    }
+    return particles;
+  }, []);
+
+  const createFilmGrain = useCallback((centerX = 50, centerY = 50) => {
+    const grains = [];
+    const count = isMobile ? 15 : 25;
+    for (let i = 0; i < count; i++) {
+      // Some grains cluster near mouse, others are random
+      const nearMouse = Math.random() > 0.4;
+      const x = nearMouse
+        ? centerX + (Math.random() - 0.5) * 50
+        : Math.random() * 100;
+      const y = nearMouse
+        ? centerY + (Math.random() - 0.5) * 40
+        : Math.random() * 100;
       grains.push({
         id: i,
-        x: Math.random() * 100,
-        y: Math.random() * 100,
-        size: Math.random() * 1.5 + 0.5,
-        opacity: Math.random() * 0.15 + 0.05,
+        x: Math.max(0, Math.min(100, x)),
+        y: Math.max(0, Math.min(100, y)),
+        size: Math.random() * 2 + 0.5,
+        opacity: Math.random() * 0.25 + 0.08,
       });
     }
     return grains;
   }, [isMobile]);
 
-  // Subtle glitch fragments - like data corruption
-  const createGlitchFragments = useCallback(() => {
-    if (Math.random() > 0.7) return []; // Only 30% chance
+  const createGlitchFragments = useCallback((mouseX = 50, mouseY = 50) => {
+    if (Math.random() > 0.55) return [];
     const fragments = [];
     const count = Math.floor(Math.random() * 3) + 1;
     for (let i = 0; i < count; i++) {
+      // Fragments appear near mouse position
+      const offsetX = (Math.random() - 0.5) * 60;
+      const offsetY = (Math.random() - 0.5) * 40;
       fragments.push({
         id: i,
-        x: Math.random() * 80 + 10,
-        y: Math.random() * 80 + 10,
-        width: Math.random() * 30 + 5,
+        x: Math.max(5, Math.min(95, mouseX + offsetX)),
+        y: Math.max(5, Math.min(95, mouseY + offsetY)),
+        width: Math.random() * 35 + 10,
         height: Math.random() * 2 + 1,
-        opacity: Math.random() * 0.2 + 0.1,
+        opacity: Math.random() * 0.25 + 0.1,
         skew: Math.random() * 10 - 5,
       });
     }
     return fragments;
   }, []);
 
-  // Animation loop for all effects
+  // Trigger glitch effect on a specific digit (defined before handleMouseMove to avoid reference error)
+  const triggerDigitGlitch = useCallback((index) => {
+    // Clear any existing timer for this digit
+    if (digitGlitchTimers.current[index]) {
+      clearInterval(digitGlitchTimers.current[index]);
+    }
+
+    let glitchCount = 0;
+    const maxGlitches = 8 + Math.floor(Math.random() * 6);
+    const timers = digitGlitchTimers.current;
+
+    const glitch = () => {
+      glitchCount++;
+      if (glitchCount < maxGlitches) {
+        setDigitGlitchChars(prev => ({
+          ...prev,
+          [index]: getGlitchChar()
+        }));
+      } else {
+        // Return to normal
+        setDigitGlitchChars(prev => {
+          const next = { ...prev };
+          delete next[index];
+          return next;
+        });
+        clearInterval(timers[index]);
+        delete timers[index];
+      }
+    };
+
+    timers[index] = setInterval(glitch, 50 + Math.random() * 30);
+    glitch(); // Immediate first glitch
+  }, [getGlitchChar]);
+
+  // Handle mouse movement with velocity tracking
+  const handleMouseMove = useCallback((e) => {
+    if (!containerRef.current || isMobile) return;
+
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const normalizedX = (x / rect.width) * 2 - 1; // -1 to 1
+    const normalizedY = (y / rect.height) * 2 - 1; // -1 to 1
+
+    // Calculate velocity
+    const now = Date.now();
+    const dt = Math.max(1, now - lastMouseTime.current);
+    const vx = (x - lastMousePos.current.x) / dt * 16; // Normalize to ~60fps
+    const vy = (y - lastMousePos.current.y) / dt * 16;
+
+    // Smooth velocity
+    velocitySmooth.current = {
+      x: velocitySmooth.current.x * 0.7 + vx * 0.3,
+      y: velocitySmooth.current.y * 0.7 + vy * 0.3,
+    };
+
+    lastMousePos.current = { x, y };
+    lastMouseTime.current = now;
+
+    setMousePos({ x: normalizedX, y: normalizedY });
+    setRawMousePos({ x, y });
+    setMouseVelocity({ ...velocitySmooth.current });
+
+    // Detect which digit is being hovered
+    if (digitsRef.current) {
+      const digitsRect = digitsRef.current.getBoundingClientRect();
+      const relativeX = e.clientX - digitsRect.left;
+      const relativeY = e.clientY - digitsRect.top;
+
+      // Check if mouse is within digits area
+      if (relativeX >= 0 && relativeX <= digitsRect.width &&
+          relativeY >= 0 && relativeY <= digitsRect.height) {
+        const digitElements = digitsRef.current.children;
+        let foundIndex = -1;
+
+        for (let i = 0; i < digitElements.length; i++) {
+          const digitRect = digitElements[i].getBoundingClientRect();
+          if (e.clientX >= digitRect.left && e.clientX <= digitRect.right) {
+            // Map element index to actual character index
+            foundIndex = i;
+            break;
+          }
+        }
+
+        if (foundIndex !== -1 && foundIndex !== hoveredDigitIndex) {
+          setHoveredDigitIndex(foundIndex);
+          // Start glitching this digit
+          triggerDigitGlitch(foundIndex);
+        }
+      } else {
+        setHoveredDigitIndex(-1);
+      }
+    }
+  }, [isMobile, displayValue, hoveredDigitIndex, triggerDigitGlitch]);
+
+  const handleMouseEnter = useCallback(() => {
+    if (isMobile) return;
+    setIsHovering(true);
+  }, [isMobile]);
+
+  const handleMouseLeave = useCallback(() => {
+    setIsHovering(false);
+    // Animate out smoothly
+    velocitySmooth.current = { x: 0, y: 0 };
+  }, []);
+
+  // Advanced hover animation with physics-based effects
+  useEffect(() => {
+    if (isHovering && !isAnimating) {
+      let frameCount = 0;
+      let phase = wavePhase;
+
+      const animateHover = () => {
+        frameCount++;
+        phase += 0.03;
+        setWavePhase(phase);
+
+        // Calculate displacement based on velocity magnitude
+        const velocityMag = Math.sqrt(
+          mouseVelocity.x * mouseVelocity.x +
+          mouseVelocity.y * mouseVelocity.y
+        );
+        const targetDisplacement = Math.min(velocityMag * 2, 20);
+        setDisplacement(prev => prev + (targetDisplacement - prev) * 0.15);
+
+        // Chromatic aberration based on velocity direction (subtle)
+        setChromaticOffset({
+          r: mouseVelocity.x * 0.4,
+          g: 0,
+          b: -mouseVelocity.x * 0.4,
+        });
+
+        // Magnetic pull - content slightly follows mouse
+        setMagneticPull(prev => ({
+          x: prev.x + (mousePos.x * 6 - prev.x) * 0.06,
+          y: prev.y + (mousePos.y * 3 - prev.y) * 0.06,
+        }));
+
+        // Static particles follow mouse
+        if (frameCount % 2 === 0 && containerRef.current) {
+          const rect = containerRef.current.getBoundingClientRect();
+          const particleX = (rawMousePos.x / rect.width) * 100;
+          const particleY = (rawMousePos.y / rect.height) * 100;
+          setStaticParticles(createStaticParticles(particleX, particleY, velocityMag));
+        }
+
+        // Subtle flicker
+        if (frameCount % 4 === 0) {
+          setFlickerOpacity(0.98 + Math.random() * 0.02);
+          setNoiseOffset({
+            x: (Math.random() - 0.5) * (0.8 + velocityMag * 0.2),
+            y: (Math.random() - 0.5) * (0.4 + velocityMag * 0.1)
+          });
+        }
+
+        // Film grain follows mouse area
+        if (frameCount % 6 === 0 && containerRef.current) {
+          const rect = containerRef.current.getBoundingClientRect();
+          const grainX = (rawMousePos.x / rect.width) * 100;
+          const grainY = (rawMousePos.y / rect.height) * 100;
+          setFilmGrain(createFilmGrain(grainX, grainY));
+        }
+
+        // Glitch fragments appear near mouse with velocity
+        if (frameCount % 8 === 0 && velocityMag > 1.5 && containerRef.current) {
+          const rect = containerRef.current.getBoundingClientRect();
+          const fragX = (rawMousePos.x / rect.width) * 100;
+          const fragY = (rawMousePos.y / rect.height) * 100;
+          setGlitchFragments(createGlitchFragments(fragX, fragY));
+        } else if (frameCount % 15 === 0) {
+          setGlitchFragments([]);
+        }
+
+        // Scan line
+        const scanDuration = 2800;
+        const scanProgress = ((performance.now() % scanDuration) / scanDuration);
+        setScanLinePos(scanProgress * 115 - 7.5);
+
+        hoverAnimationRef.current = requestAnimationFrame(animateHover);
+      };
+
+      hoverAnimationRef.current = requestAnimationFrame(animateHover);
+      setFilmGrain(createFilmGrain());
+    } else if (!isHovering && !isAnimating) {
+      if (hoverAnimationRef.current) {
+        cancelAnimationFrame(hoverAnimationRef.current);
+      }
+
+      // Smooth decay of effects
+      const decay = () => {
+        let stillDecaying = false;
+
+        setDisplacement(prev => {
+          if (prev < 0.05) return 0;
+          stillDecaying = true;
+          return prev * 0.88;
+        });
+        setChromaticOffset(prev => ({
+          r: prev.r * 0.85,
+          g: 0,
+          b: prev.b * 0.85,
+        }));
+        setMagneticPull(prev => {
+          if (Math.abs(prev.x) > 0.01 || Math.abs(prev.y) > 0.01) stillDecaying = true;
+          return {
+            x: prev.x * 0.88,
+            y: prev.y * 0.88,
+          };
+        });
+        setFlickerOpacity(prev => prev + (1 - prev) * 0.12);
+        setNoiseOffset(prev => ({
+          x: prev.x * 0.85,
+          y: prev.y * 0.85,
+        }));
+        setStaticParticles(prev => {
+          if (prev.length === 0) return prev;
+          stillDecaying = true;
+          // Fade out particles
+          return prev.map(p => ({ ...p, opacity: p.opacity * 0.85 }))
+            .filter(p => p.opacity > 0.02);
+        });
+
+        if (stillDecaying) {
+          hoverAnimationRef.current = requestAnimationFrame(decay);
+        } else {
+          setFilmGrain([]);
+          setGlitchFragments([]);
+          setStaticParticles([]);
+          setHoveredDigitIndex(-1);
+          setDigitGlitchChars({});
+        }
+      };
+      hoverAnimationRef.current = requestAnimationFrame(decay);
+    }
+
+    return () => {
+      if (hoverAnimationRef.current) {
+        cancelAnimationFrame(hoverAnimationRef.current);
+      }
+    };
+  }, [isHovering, isAnimating, mousePos, rawMousePos, mouseVelocity, createFilmGrain, createGlitchFragments, createStaticParticles, wavePhase]);
+
+  // Cleanup digit glitch timers on unmount
+  useEffect(() => {
+    const timers = digitGlitchTimers.current;
+    return () => {
+      Object.values(timers).forEach(timer => clearInterval(timer));
+    };
+  }, []);
+
+  // Ambient scan line - runs periodically when not hovering (not constant)
+  useEffect(() => {
+    if (isHovering || isAnimating) {
+      setAmbientScanActive(false);
+      return;
+    }
+
+    // Schedule scans with random delays (3-6 seconds between each)
+    let timeoutId;
+    const scheduleScan = () => {
+      const delay = 3000 + Math.random() * 3000; // 3-6 seconds
+      timeoutId = setTimeout(() => {
+        if (!isHovering && !isAnimating) {
+          setAmbientScanActive(true);
+          setAmbientScanPos(-5);
+        }
+        scheduleScan(); // Schedule next one
+      }, delay);
+    };
+
+    // Start first scan after a short delay
+    const initialTimeout = setTimeout(() => {
+      if (!isHovering && !isAnimating) {
+        setAmbientScanActive(true);
+        setAmbientScanPos(-5);
+      }
+      scheduleScan();
+    }, 1000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearTimeout(timeoutId);
+    };
+  }, [isHovering, isAnimating]);
+
+  // Animate the ambient scan line when active
+  useEffect(() => {
+    if (!ambientScanActive) return;
+
+    let animFrame;
+    const animate = () => {
+      setAmbientScanPos(prev => {
+        const next = prev + 0.8;
+        if (next > 110) {
+          setAmbientScanActive(false);
+          return -5;
+        }
+        return next;
+      });
+      animFrame = requestAnimationFrame(animate);
+    };
+    animFrame = requestAnimationFrame(animate);
+
+    return () => cancelAnimationFrame(animFrame);
+  }, [ambientScanActive]);
+
+  const isActive = isAnimating || isHovering || displacement > 0.1;
+
+  // Value change animation
   useEffect(() => {
     if (isAnimating) {
       let frameCount = 0;
@@ -79,13 +449,10 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
 
       const animate = (timestamp) => {
         frameCount++;
-
-        // Scan line - smooth, slower sweep
         const scanDuration = 2400;
         const scanProgress = ((timestamp % scanDuration) / scanDuration);
         setScanLinePos(scanProgress * 115 - 7.5);
 
-        // Subtle flicker - very gentle
         if (frameCount % 3 === 0) {
           setFlickerOpacity(0.97 + Math.random() * 0.03);
           setNoiseOffset({
@@ -94,26 +461,23 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
           });
         }
 
-        // Film grain - update every ~100ms
         if (timestamp - lastGrainUpdate > 100) {
           setFilmGrain(createFilmGrain());
           lastGrainUpdate = timestamp;
         }
 
-        // Glitch fragments - update every ~200ms
         if (timestamp - lastFragmentUpdate > 200) {
           setGlitchFragments(createGlitchFragments());
           lastFragmentUpdate = timestamp;
         }
 
-        // Light leak - occasional subtle warm flash
         if (frameCount % 60 === 0 && Math.random() > 0.7) {
           setLightLeak({
             active: true,
             x: Math.random() * 100,
-            intensity: Math.random() * 0.15 + 0.05
+            intensity: Math.random() * 0.2 + 0.08
           });
-          setTimeout(() => setLightLeak({ active: false, x: 0, intensity: 0 }), 150);
+          setTimeout(() => setLightLeak({ active: false, x: 0, intensity: 0 }), 180);
         }
 
         animationRef.current = requestAnimationFrame(animate);
@@ -125,11 +489,9 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
-      setFlickerOpacity(1);
-      setNoiseOffset({ x: 0, y: 0 });
-      setFilmGrain([]);
-      setGlitchFragments([]);
-      setLightLeak({ active: false, x: 0, intensity: 0 });
+      if (!isHovering) {
+        setLightLeak({ active: false, x: 0, intensity: 0 });
+      }
     }
 
     return () => {
@@ -137,35 +499,50 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [isAnimating, createFilmGrain, createGlitchFragments]);
+  }, [isAnimating, isHovering, createFilmGrain, createGlitchFragments]);
+
+  const processQueue = useCallback(() => {
+    if (isProcessingRef.current || animationQueueRef.current.length === 0) {
+      return;
+    }
+
+    isProcessingRef.current = true;
+    const targetValue = animationQueueRef.current.shift();
+    const targetText = formatNumber(targetValue);
+
+    setIsAnimating(true);
+    setShowGlitch(true);
+
+    let scrambleCount = 0;
+    const maxScrambles = 16;
+    const scrambleInterval = setInterval(() => {
+      setScrambleText(getScrambleText(targetText));
+      scrambleCount++;
+      if (scrambleCount >= maxScrambles) {
+        clearInterval(scrambleInterval);
+        setScrambleText('');
+        setDisplayValue(targetValue);
+      }
+    }, 65);
+
+    setTimeout(() => setShowGlitch(false), 800);
+    setTimeout(() => {
+      setIsAnimating(false);
+      prevValueRef.current = targetValue;
+      isProcessingRef.current = false;
+      processQueue();
+    }, 1600);
+  }, [getScrambleText]);
 
   useEffect(() => {
     if (value !== prevValueRef.current) {
-      const targetText = formatNumber(value);
-      setIsAnimating(true);
-      setShowGlitch(true);
-
-      let scrambleCount = 0;
-      const maxScrambles = 16;
-      const scrambleInterval = setInterval(() => {
-        setScrambleText(getScrambleText(targetText));
-        scrambleCount++;
-        if (scrambleCount >= maxScrambles) {
-          clearInterval(scrambleInterval);
-          setScrambleText('');
-          setDisplayValue(value);
-        }
-      }, 65);
-
-      setTimeout(() => setShowGlitch(false), 800);
-      setTimeout(() => {
-        setIsAnimating(false);
-        prevValueRef.current = value;
-      }, 1600);
-
-      return () => clearInterval(scrambleInterval);
+      const lastQueued = animationQueueRef.current[animationQueueRef.current.length - 1];
+      if (lastQueued !== value) {
+        animationQueueRef.current.push(value);
+      }
+      processQueue();
     }
-  }, [value, getScrambleText]);
+  }, [value, processQueue]);
 
   const formatted = formatNumber(displayValue);
   const digitHeight = fontSizeValue * 1.2;
@@ -184,49 +561,191 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
     color: '#FFFFFF',
   };
 
+  // Calculate wave displacement for each digit
+  const getDigitWave = (index, total) => {
+    if (!isHovering && displacement < 0.1) return { x: 0, y: 0, scale: 1 };
+    const normalizedIndex = (index / total) * 2 - 1;
+    const distanceFromMouse = Math.abs(normalizedIndex - mousePos.x);
+    const influence = Math.max(0, 1 - distanceFromMouse * 1.5);
+
+    return {
+      x: Math.sin(wavePhase + index * 0.5) * displacement * influence * 0.3,
+      y: Math.cos(wavePhase + index * 0.3) * displacement * influence * 0.2,
+      scale: 1 + influence * displacement * 0.008,
+    };
+  };
+
   return (
     <div
       ref={containerRef}
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      aria-label={`Your Points: ${formatNumber(displayValue)}`}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       style={{
         position: 'relative',
         display: 'inline-flex',
         flexDirection: 'column',
         alignItems: 'center',
         padding: isMobile ? '2rem 2.5rem' : '2.5rem 4rem',
+        cursor: isMobile ? 'default' : 'none',
       }}
     >
-      {/* Cinematic screen backdrop */}
+      {/* Custom cursor - refined */}
+      {isHovering && !isMobile && containerRef.current && (
+        <>
+          {/* Main cursor ring */}
+          <div
+            style={{
+              position: 'fixed',
+              left: lastMousePos.current.x + containerRef.current.getBoundingClientRect().left,
+              top: lastMousePos.current.y + containerRef.current.getBoundingClientRect().top,
+              width: 6 + displacement * 1.5,
+              height: 6 + displacement * 1.5,
+              borderRadius: '50%',
+              border: '1px solid rgba(255, 255, 255, 0.5)',
+              transform: 'translate(-50%, -50%)',
+              pointerEvents: 'none',
+              zIndex: 100,
+              transition: 'width 0.08s, height 0.08s',
+              mixBlendMode: 'difference',
+            }}
+          />
+          {/* Inner dot */}
+          <div
+            style={{
+              position: 'fixed',
+              left: lastMousePos.current.x + containerRef.current.getBoundingClientRect().left,
+              top: lastMousePos.current.y + containerRef.current.getBoundingClientRect().top,
+              width: 2,
+              height: 2,
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.8)',
+              transform: 'translate(-50%, -50%)',
+              pointerEvents: 'none',
+              zIndex: 101,
+              mixBlendMode: 'difference',
+            }}
+          />
+        </>
+      )}
+
+      {/* Screen reader only */}
+      <span style={{
+        position: 'absolute',
+        width: '1px',
+        height: '1px',
+        padding: 0,
+        margin: '-1px',
+        overflow: 'hidden',
+        clip: 'rect(0, 0, 0, 0)',
+        whiteSpace: 'nowrap',
+        border: 0,
+      }}>
+        Your Points: {formatNumber(displayValue)}
+      </span>
+
+      {/* Cinematic backdrop */}
       <div
         style={{
           position: 'absolute',
           inset: isMobile ? '-15px' : '-20px',
-          background: isAnimating
-            ? 'radial-gradient(ellipse 130% 110% at center, rgba(8, 8, 12, 0.96) 0%, rgba(3, 3, 6, 0.98) 60%, rgba(0, 0, 2, 1) 100%)'
+          background: isActive
+            ? `radial-gradient(ellipse 130% 110% at ${50 + mousePos.x * 20}% ${50 + mousePos.y * 20}%, rgba(10, 10, 15, 0.95) 0%, rgba(5, 5, 10, 0.98) 50%, rgba(0, 0, 5, 1) 100%)`
             : 'transparent',
           borderRadius: isMobile ? '16px' : '24px',
-          opacity: isAnimating ? 1 : 0,
-          transition: 'opacity 0.4s ease-out',
+          opacity: isActive ? 1 : 0,
+          transition: 'opacity 0.15s ease-out',
           overflow: 'hidden',
-          boxShadow: isAnimating ? `
+          boxShadow: isActive ? `
             inset 0 1px 0 rgba(255, 255, 255, 0.03),
             inset 0 0 100px rgba(0, 0, 0, 0.8),
             0 0 80px rgba(255, 255, 255, 0.02)
           ` : 'none',
         }}
       >
-        {/* Subtle vignette */}
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'radial-gradient(ellipse 90% 80% at center, transparent 40%, rgba(0, 0, 0, 0.6) 100%)',
-            opacity: isAnimating ? 1 : 0,
-            pointerEvents: 'none',
-          }}
-        />
+        {/* Displacement field - follows mouse exactly */}
+        {isHovering && containerRef.current && (
+          <div
+            style={{
+              position: 'absolute',
+              left: rawMousePos.x,
+              top: rawMousePos.y,
+              width: `${40 + displacement * 6}px`,
+              height: `${40 + displacement * 6}px`,
+              transform: 'translate(-50%, -50%)',
+              borderRadius: '50%',
+              background: `radial-gradient(circle, rgba(255, 255, 255, ${0.04 + displacement * 0.008}) 0%, transparent 70%)`,
+              filter: `blur(${8 + displacement * 0.5}px)`,
+              pointerEvents: 'none',
+              zIndex: 5,
+              transition: 'width 0.1s, height 0.1s',
+            }}
+          />
+        )}
 
-        {/* Film grain overlay */}
-        {isAnimating && filmGrain.map(grain => (
+        {/* Secondary glow trail */}
+        {isHovering && displacement > 0.5 && containerRef.current && (
+          <div
+            style={{
+              position: 'absolute',
+              left: rawMousePos.x - mouseVelocity.x * 3,
+              top: rawMousePos.y - mouseVelocity.y * 3,
+              width: `${25 + displacement * 3}px`,
+              height: `${25 + displacement * 3}px`,
+              transform: 'translate(-50%, -50%)',
+              borderRadius: '50%',
+              background: `radial-gradient(circle, rgba(255, 255, 255, ${0.02 + displacement * 0.003}) 0%, transparent 60%)`,
+              filter: `blur(${12}px)`,
+              pointerEvents: 'none',
+              zIndex: 4,
+            }}
+          />
+        )}
+
+        {/* Static particles that follow mouse */}
+        {isActive && staticParticles.map(particle => (
+          <div
+            key={`static-${particle.id}`}
+            style={{
+              position: 'absolute',
+              left: `${particle.x}%`,
+              top: `${particle.y}%`,
+              transform: 'translate(-50%, -50%)',
+              pointerEvents: 'none',
+              zIndex: 15,
+            }}
+          >
+            {particle.char ? (
+              <span
+                style={{
+                  fontSize: `${8 + particle.size * 2}px`,
+                  fontFamily: 'monospace',
+                  color: `rgba(255, 255, 255, ${particle.opacity})`,
+                  textShadow: `0 0 4px rgba(255, 255, 255, ${particle.opacity * 0.5})`,
+                }}
+              >
+                {particle.char}
+              </span>
+            ) : (
+              <div
+                style={{
+                  width: `${particle.size}px`,
+                  height: `${particle.size}px`,
+                  borderRadius: '50%',
+                  background: `rgba(255, 255, 255, ${particle.opacity})`,
+                  boxShadow: `0 0 ${particle.size * 2}px rgba(255, 255, 255, ${particle.opacity * 0.3})`,
+                }}
+              />
+            )}
+          </div>
+        ))}
+
+        {/* Film grain */}
+        {isActive && filmGrain.map(grain => (
           <div
             key={grain.id}
             style={{
@@ -243,31 +762,103 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
           />
         ))}
 
-        {/* Scan line - subtle, cinematic */}
-        {isAnimating && (
+        {/* Etch-a-sketch crosshair - X and Y lines meeting at cursor */}
+        {isHovering && containerRef.current && (() => {
+          // The backdrop has inset: -20px, so we need to offset the mouse position
+          const backdropOffset = isMobile ? 15 : 20;
+          const adjustedX = rawMousePos.x + backdropOffset;
+          const adjustedY = rawMousePos.y + backdropOffset;
+          const rect = containerRef.current.getBoundingClientRect();
+          const backdropWidth = rect.width + (backdropOffset * 2);
+          const backdropHeight = rect.height + (backdropOffset * 2);
+          const xPercent = (adjustedX / backdropWidth) * 100;
+          const yPercent = (adjustedY / backdropHeight) * 100;
+          return (
+            <>
+              {/* Horizontal scan line (follows mouse Y) */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  top: adjustedY,
+                  height: '1px',
+                  background: `linear-gradient(90deg,
+                    transparent 0%,
+                    rgba(255, 255, 255, ${0.02 + displacement * 0.002}) ${Math.max(0, xPercent - 40)}%,
+                    rgba(255, 255, 255, ${0.12 + displacement * 0.01}) ${xPercent}%,
+                    rgba(255, 255, 255, ${0.02 + displacement * 0.002}) ${Math.min(100, xPercent + 40)}%,
+                    transparent 100%
+                  )`,
+                  boxShadow: `0 0 ${6 + displacement}px rgba(255, 255, 255, ${0.03 + displacement * 0.003})`,
+                  pointerEvents: 'none',
+                  zIndex: 11,
+                }}
+              />
+              {/* Vertical scan line (follows mouse X) */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  bottom: 0,
+                  left: adjustedX,
+                  width: '1px',
+                  background: `linear-gradient(180deg,
+                    transparent 0%,
+                    rgba(255, 255, 255, ${0.02 + displacement * 0.002}) ${Math.max(0, yPercent - 40)}%,
+                    rgba(255, 255, 255, ${0.12 + displacement * 0.01}) ${yPercent}%,
+                    rgba(255, 255, 255, ${0.02 + displacement * 0.002}) ${Math.min(100, yPercent + 40)}%,
+                    transparent 100%
+                  )`,
+                  boxShadow: `0 0 ${6 + displacement}px rgba(255, 255, 255, ${0.03 + displacement * 0.003})`,
+                  pointerEvents: 'none',
+                  zIndex: 11,
+                }}
+              />
+              {/* Intersection glow - brighter where lines meet */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: adjustedX,
+                  top: adjustedY,
+                  width: `${4 + displacement * 0.6}px`,
+                  height: `${4 + displacement * 0.6}px`,
+                  transform: 'translate(-50%, -50%)',
+                  borderRadius: '50%',
+                  background: `radial-gradient(circle, rgba(255, 255, 255, ${0.35 + displacement * 0.03}) 0%, transparent 70%)`,
+                  pointerEvents: 'none',
+                  zIndex: 12,
+                }}
+              />
+            </>
+          );
+        })()}
+
+        {/* Ambient scan line when not hovering - sweeps occasionally */}
+        {!isHovering && ambientScanActive && (
           <div
             style={{
               position: 'absolute',
               left: 0,
               right: 0,
-              top: `${scanLinePos}%`,
-              height: '2px',
+              top: `${ambientScanPos}%`,
+              height: '1px',
               background: `linear-gradient(90deg,
                 transparent 0%,
                 rgba(255, 255, 255, 0.04) 15%,
-                rgba(255, 255, 255, 0.06) 50%,
+                rgba(255, 255, 255, 0.08) 50%,
                 rgba(255, 255, 255, 0.04) 85%,
                 transparent 100%
               )`,
-              boxShadow: '0 0 12px rgba(255, 255, 255, 0.03)',
+              boxShadow: '0 0 8px rgba(255, 255, 255, 0.03)',
               pointerEvents: 'none',
               zIndex: 11,
             }}
           />
         )}
 
-        {/* Data glitch fragments */}
-        {isAnimating && glitchFragments.map(frag => (
+        {/* Glitch fragments */}
+        {isActive && glitchFragments.map(frag => (
           <div
             key={frag.id}
             style={{
@@ -284,7 +875,7 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
           />
         ))}
 
-        {/* Light leak - warm cinematic flash */}
+        {/* Light leak */}
         {lightLeak.active && (
           <div
             style={{
@@ -300,7 +891,7 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
           />
         )}
 
-        {/* Very subtle horizontal lines - like old film */}
+        {/* Horizontal lines */}
         <div
           style={{
             position: 'absolute',
@@ -309,18 +900,18 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
               0deg,
               transparent 0px,
               transparent 3px,
-              rgba(0, 0, 0, 0.03) 3px,
-              rgba(0, 0, 0, 0.03) 4px
+              rgba(0, 0, 0, 0.05) 3px,
+              rgba(0, 0, 0, 0.05) 4px
             )`,
-            opacity: isAnimating ? 0.4 : 0,
+            opacity: isActive ? 0.5 : 0,
             pointerEvents: 'none',
             zIndex: 10,
           }}
         />
       </div>
 
-      {/* Chromatic aberration - more subtle */}
-      {showGlitch && (
+      {/* Chromatic aberration layers - velocity based */}
+      {(showGlitch || (isHovering && Math.abs(chromaticOffset.r) > 0.3)) && (
         <>
           <div
             style={{
@@ -329,11 +920,11 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'rgba(255, 80, 80, 0.35)',
+              color: `rgba(255, 80, 80, ${showGlitch ? 0.4 : Math.min(0.35, Math.abs(chromaticOffset.r) * 0.08)})`,
               fontSize: `${fontSizeValue}${fontSizeUnit}`,
               fontWeight: '600',
               fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-              transform: `translateX(${-2.5 + noiseOffset.x}px)`,
+              transform: `translateX(${showGlitch ? (-3 + noiseOffset.x) : chromaticOffset.r}px)`,
               pointerEvents: 'none',
               zIndex: 15,
               mixBlendMode: 'screen',
@@ -348,11 +939,11 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'rgba(80, 200, 255, 0.35)',
+              color: `rgba(80, 200, 255, ${showGlitch ? 0.4 : Math.min(0.35, Math.abs(chromaticOffset.b) * 0.08)})`,
               fontSize: `${fontSizeValue}${fontSizeUnit}`,
               fontWeight: '600',
               fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-              transform: `translateX(${2.5 + noiseOffset.x}px)`,
+              transform: `translateX(${showGlitch ? (3 + noiseOffset.x) : chromaticOffset.b}px)`,
               pointerEvents: 'none',
               zIndex: 15,
               mixBlendMode: 'screen',
@@ -370,10 +961,10 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          width: isAnimating ? '200%' : '130%',
-          height: isAnimating ? '250%' : '160%',
+          width: isActive ? '200%' : '130%',
+          height: isActive ? '250%' : '160%',
           background: `radial-gradient(ellipse at center,
-            ${isAnimating ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.02)'} 0%,
+            ${isActive ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.02)'} 0%,
             transparent 70%)`,
           transition: 'all 1.2s cubic-bezier(0.16, 1, 0.3, 1)',
           pointerEvents: 'none',
@@ -381,7 +972,7 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
         }}
       />
 
-      {/* Main content */}
+      {/* Main content with magnetic pull */}
       <div
         style={{
           position: 'relative',
@@ -390,8 +981,8 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
           flexDirection: 'column',
           alignItems: 'center',
           opacity: flickerOpacity,
-          transform: `translate(${noiseOffset.x}px, ${noiseOffset.y}px)`,
-          transition: isAnimating ? 'none' : 'opacity 0.3s ease, transform 0.3s ease',
+          transform: `translate(${magneticPull.x + noiseOffset.x}px, ${magneticPull.y + noiseOffset.y}px)`,
+          transition: isActive ? 'none' : 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       >
         {/* Top label */}
@@ -405,25 +996,26 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
             color: 'rgba(255, 255, 255, 0.4)',
             marginBottom: isMobile ? '1rem' : '1.5rem',
             position: 'relative',
-            textShadow: isAnimating ? '0 0 8px rgba(255, 255, 255, 0.3)' : 'none',
+            textShadow: isActive ? '0 0 8px rgba(255, 255, 255, 0.3)' : 'none',
             transition: 'text-shadow 0.3s ease',
           }}
         >
-          Total Points
+          Your Points
         </div>
 
-        {/* Digits */}
+        {/* Digits with wave displacement */}
         <div
+          ref={digitsRef}
+          aria-hidden="true"
           style={{
             position: 'relative',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
             filter: showGlitch ? 'blur(0.3px)' : 'none',
-            transition: 'filter 0.2s ease',
           }}
         >
-          {(scrambleText || formatted).split('').map((char, i) => {
+          {(scrambleText || formatted).split('').map((char, i, arr) => {
             if (char === ',') {
               return (
                 <span
@@ -446,6 +1038,10 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
             }
 
             const isScrambling = scrambleText && scrambleText[i] !== formatted[i];
+            const wave = getDigitWave(i, arr.length);
+            const hasGlitchChar = digitGlitchChars[i] !== undefined;
+            const glitchChar = digitGlitchChars[i];
+            const isDigitHovered = hoveredDigitIndex === i;
 
             return (
               <div
@@ -456,8 +1052,37 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
                   height: `${digitHeight}${fontSizeUnit}`,
                   overflow: 'hidden',
                   display: 'inline-block',
+                  transform: `translate(${wave.x}px, ${wave.y}px) scale(${wave.scale})`,
+                  transition: isHovering ? 'none' : 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
                 }}
               >
+                {/* Glitch character overlay - shows when digit is hovered */}
+                {hasGlitchChar && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 10,
+                      fontSize: `${fontSizeValue}${fontSizeUnit}`,
+                      fontWeight: '600',
+                      fontFamily: 'Inter, monospace',
+                      color: '#FFFFFF',
+                      textShadow: `
+                        0 0 20px rgba(255, 255, 255, 0.8),
+                        0 0 40px rgba(255, 255, 255, 0.4),
+                        -2px 0 rgba(255, 80, 80, 0.6),
+                        2px 0 rgba(80, 200, 255, 0.6)
+                      `,
+                      transform: `translateX(${(Math.random() - 0.5) * 3}px)`,
+                    }}
+                  >
+                    {glitchChar}
+                  </div>
+                )}
+
                 <div
                   style={{
                     position: 'absolute',
@@ -466,6 +1091,7 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
                       ? `translateY(-${(parseInt(char) || 0) * digitHeight}${fontSizeUnit})`
                       : `translateY(-${(parseInt(formatted[i]) || 0) * digitHeight}${fontSizeUnit})`,
                     transition: isScrambling ? 'none' : 'transform 0.9s cubic-bezier(0.16, 1, 0.3, 1)',
+                    opacity: hasGlitchChar ? 0.15 : 1,
                   }}
                 >
                   {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
@@ -473,16 +1099,59 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
                       key={n}
                       style={{
                         ...digitStyle,
-                        textShadow: isAnimating
-                          ? '0 0 15px rgba(255, 255, 255, 0.4), 0 0 30px rgba(255, 255, 255, 0.2)'
+                        textShadow: isActive
+                          ? `0 0 ${15 + displacement}px rgba(255, 255, 255, ${0.4 + displacement * 0.02}), 0 0 ${30 + displacement * 2}px rgba(255, 255, 255, 0.2)`
                           : 'none',
-                        transition: 'text-shadow 0.3s ease',
                       }}
                     >
                       {n}
                     </div>
                   ))}
                 </div>
+
+                {/* Digit-specific chromatic on hover */}
+                {isDigitHovered && !hasGlitchChar && (
+                  <>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'rgba(255, 80, 80, 0.3)',
+                        fontSize: `${fontSizeValue}${fontSizeUnit}`,
+                        fontWeight: '600',
+                        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                        transform: 'translateX(-2px)',
+                        pointerEvents: 'none',
+                        zIndex: 8,
+                        mixBlendMode: 'screen',
+                      }}
+                    >
+                      {formatted[i]}
+                    </div>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'rgba(80, 200, 255, 0.3)',
+                        fontSize: `${fontSizeValue}${fontSizeUnit}`,
+                        fontWeight: '600',
+                        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                        transform: 'translateX(2px)',
+                        pointerEvents: 'none',
+                        zIndex: 8,
+                        mixBlendMode: 'screen',
+                      }}
+                    >
+                      {formatted[i]}
+                    </div>
+                  </>
+                )}
 
                 {/* Top mask */}
                 <div
@@ -516,15 +1185,15 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
           })}
         </div>
 
-        {/* Micro text */}
+        {/* Redeem text */}
         <div
           style={{
             marginTop: isMobile ? '1.25rem' : '1.75rem',
-            fontSize: isMobile ? '0.5625rem' : '0.6875rem',
-            fontWeight: '400',
+            fontSize: isMobile ? '0.625rem' : '0.75rem',
+            fontWeight: '500',
             fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-            letterSpacing: '0.08em',
-            color: 'rgba(255, 255, 255, 0.2)',
+            letterSpacing: '0.15em',
+            color: 'rgba(255, 255, 255, 0.45)',
             textTransform: 'uppercase',
           }}
         >

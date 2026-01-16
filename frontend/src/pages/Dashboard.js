@@ -42,6 +42,7 @@ const Dashboard = () => {
   const [selectedPrize, setSelectedPrize] = useState(null);
   const [confirmRedeemPrize, setConfirmRedeemPrize] = useState(null); // Prize pending confirmation
   const [userPoints, setUserPoints] = useState(user?.points || 0);
+  const [testPoints, setTestPoints] = useState(null); // For testing animation
 
   // Carousel drag state
   const [isDragging, setIsDragging] = useState(false);
@@ -57,30 +58,6 @@ const Dashboard = () => {
   const [cardTilt, setCardTilt] = useState({ rotateX: 0, rotateY: 0 });
   const [glowOffset, setGlowOffset] = useState({ x: 0, y: 0 });
   const [glowIntensity, setGlowIntensity] = useState(0); // 0-1 based on tilt amount
-
-  // Dev test mode - triple click on TOTAL POINTS to reveal
-  const [devTestMode, setDevTestMode] = useState(false);
-  const clickCountRef = useRef(0);
-  const clickTimerRef = useRef(null);
-
-  const handleTotalPointsClick = () => {
-    clickCountRef.current += 1;
-    if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
-
-    if (clickCountRef.current >= 3) {
-      setDevTestMode(prev => !prev);
-      clickCountRef.current = 0;
-    } else {
-      clickTimerRef.current = setTimeout(() => {
-        clickCountRef.current = 0;
-      }, 500);
-    }
-  };
-
-  const handleTestPoints = (amount) => {
-    const newPoints = Math.max(0, user.points + amount);
-    updateUserPoints(newPoints);
-  };
 
   // Handle resend verification email
   const handleResendVerification = async () => {
@@ -725,143 +702,62 @@ const Dashboard = () => {
         marginBottom: isMobile ? '2rem' : '3rem'
       }}>
         <h1 style={{
-          color: '#FFF',
+          margin: 0,
+          marginBottom: isMobile ? '1rem' : '0',
+          padding: isMobile ? '0 20px' : '0',
           textAlign: 'center',
           fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-          fontSize: isMobile ? '1.5rem' : '2.1875rem',
-          fontStyle: 'normal',
-          fontWeight: '500',
-          lineHeight: isMobile ? '1.8rem' : '2.5rem',
-          letterSpacing: '-0.01em',
-          margin: '0',
-          marginBottom: isMobile ? '2rem' : '2.5rem',
-          padding: isMobile ? '0 20px' : '0'
-        }}>
-          Use your referral link<br />to earn points
-        </h1>
-        <p style={{
-          color: '#FFF',
-          textAlign: isMobile ? 'left' : 'center',
-          fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-          fontSize: '0.9375rem',
-          fontStyle: 'normal',
+          fontSize: isMobile ? '2rem' : '3.5rem',
           fontWeight: '400',
-          lineHeight: '1.25rem',
-          letterSpacing: '0',
-          margin: '0',
-          maxWidth: '600px',
-          padding: isMobile ? '0 20px' : '0'
+          letterSpacing: '-0.02em',
+          lineHeight: 1.15,
+          color: '#FFFFFF',
         }}>
-          {isMobile ? (
-            'Your unique referral link takes you directly to the latest episode of DOAC. Every time someone clicks on your link, you earn points. These points can then be used to redeem prizes'
-          ) : (
-            <>Your unique referral link takes you directly to the latest episode of DOAC.<br />Every time someone clicks on your link, you earn points.<br />These points can then be used to redeem prizes</>
-          )}
-        </p>
-      </div>
+          Use your referral link
+          <br />
+          to earn points
+        </h1>
+        </div>
       <div style={{
         display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
         justifyContent: 'center',
         marginBottom: isMobile ? '4rem' : '6rem'
       }}>
-        <div
-          onClick={handleTotalPointsClick}
+        <SplitFlapCounter
+          value={testPoints !== null ? testPoints : user.points}
+          fontSize={isMobile ? '3rem' : '5rem'}
+          isMobile={isMobile}
+        />
+        {/* Test button for animation testing */}
+        <button
+          onClick={() => setTestPoints(prev => (prev !== null ? prev : user.points) + 1)}
           style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            cursor: 'default',
-            userSelect: 'none'
+            marginTop: '1.5rem',
+            padding: '8px 16px',
+            background: 'transparent',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            borderRadius: '6px',
+            color: 'rgba(255, 255, 255, 0.5)',
+            fontSize: '0.75rem',
+            fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.borderColor = 'rgba(255, 255, 255, 0.4)';
+            e.target.style.color = 'rgba(255, 255, 255, 0.8)';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+            e.target.style.color = 'rgba(255, 255, 255, 0.5)';
           }}
         >
-          <SplitFlapCounter
-            value={user.points}
-            fontSize={isMobile ? '3rem' : '5rem'}
-            isMobile={isMobile}
-          />
-          {/* Dev test buttons - triple click TOTAL POINTS to reveal */}
-          {devTestMode && (
-            <div style={{
-              display: 'flex',
-              gap: '10px',
-              marginTop: '20px',
-              padding: '10px',
-              background: 'rgba(255,255,255,0.1)',
-              borderRadius: '8px'
-            }}>
-              <button
-                onClick={() => handleTestPoints(-500)}
-                style={{
-                  padding: '8px 16px',
-                  background: '#dc3545',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontWeight: '600'
-                }}
-              >
-                -500
-              </button>
-              <button
-                onClick={() => handleTestPoints(-100)}
-                style={{
-                  padding: '8px 16px',
-                  background: '#dc3545',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontWeight: '600'
-                }}
-              >
-                -100
-              </button>
-              <button
-                onClick={() => handleTestPoints(100)}
-                style={{
-                  padding: '8px 16px',
-                  background: '#28a745',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontWeight: '600'
-                }}
-              >
-                +100
-              </button>
-              <button
-                onClick={() => handleTestPoints(500)}
-                style={{
-                  padding: '8px 16px',
-                  background: '#28a745',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontWeight: '600'
-                }}
-              >
-                +500
-              </button>
-              <button
-                onClick={() => handleTestPoints(1000)}
-                style={{
-                  padding: '8px 16px',
-                  background: '#28a745',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontWeight: '600'
-                }}
-              >
-                +1000
-              </button>
-            </div>
-          )}
-        </div>
+          + Add Point (Test)
+        </button>
       </div>
 
       <div style={{
