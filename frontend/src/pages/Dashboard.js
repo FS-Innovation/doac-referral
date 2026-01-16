@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { userAPI, episodesAPI, prizeAPI } from '../services/api';
 import SplitFlapCounter from '../components/SplitFlapCounter';
+import CopyLinkBar from '../components/CopyLinkBar';
+import PrizeRail from '../components/PrizeRail';
 import {
   buildReferralUrl,
   getYouTubeThumbnail,
@@ -18,10 +20,6 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  const [activeCard, setActiveCard] = useState(0);
-  const [hoveredCard, setHoveredCard] = useState(null);
-  const [touchStart, setTouchStart] = useState(0);
-  const [touchEnd, setTouchEnd] = useState(0);
   // Selected episode YouTube video ID from backend (null = "LATEST" mode)
   const [selectedVideoId, setSelectedVideoId] = useState(null);
   const [backendLoaded, setBackendLoaded] = useState(false);
@@ -43,11 +41,6 @@ const Dashboard = () => {
   const [confirmRedeemPrize, setConfirmRedeemPrize] = useState(null); // Prize pending confirmation
   const [userPoints, setUserPoints] = useState(user?.points || 0);
   const [testPoints, setTestPoints] = useState(null); // For testing animation
-
-  // Carousel drag state
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStartX, setDragStartX] = useState(0);
-  const [dragOffset, setDragOffset] = useState(0);
 
   // Email verification state
   const [resendingVerification, setResendingVerification] = useState(false);
@@ -89,103 +82,6 @@ const Dashboard = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const handleTouchStart = (e) => {
-    setTouchStart(e.targetTouches[0].clientX);
-  };
-
-  const handleTouchMove = (e) => {
-    setTouchEnd(e.targetTouches[0].clientX);
-  };
-
-  const handleTouchEnd = () => {
-    if (!touchStart || !touchEnd) return;
-
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > 50;
-    const isRightSwipe = distance < -50;
-
-    if (isLeftSwipe && activeCard < prizes.length - 1) {
-      setActiveCard(activeCard + 1);
-    }
-    if (isRightSwipe && activeCard > 0) {
-      setActiveCard(activeCard - 1);
-    }
-
-    setTouchStart(0);
-    setTouchEnd(0);
-  };
-
-  // Drag handlers for desktop carousel
-  const dragHasMoved = React.useRef(false);
-
-  const handleDragStart = (e) => {
-    setIsDragging(true);
-    setDragStartX(e.clientX || e.touches?.[0]?.clientX || 0);
-    setDragOffset(0);
-    dragHasMoved.current = false;
-  };
-
-  const handleDragMove = (e) => {
-    if (!isDragging) return;
-    const currentX = e.clientX || e.touches?.[0]?.clientX || 0;
-    const newOffset = currentX - dragStartX;
-    setDragOffset(newOffset);
-
-    // Mark as actually dragged if moved more than 10px
-    if (Math.abs(newOffset) > 10) {
-      dragHasMoved.current = true;
-    }
-  };
-
-  const handleDragEnd = () => {
-    if (!isDragging) return;
-    setIsDragging(false);
-
-    // Only change cards if actually dragged
-    if (dragHasMoved.current) {
-      const threshold = 80;
-      if (dragOffset > threshold && activeCard > 0) {
-        setActiveCard(activeCard - 1);
-      } else if (dragOffset < -threshold && activeCard < prizes.length - 1) {
-        setActiveCard(activeCard + 1);
-      }
-    }
-    setDragOffset(0);
-  };
-
-  // Handle container click - calculates which card was clicked based on position
-  // This bypasses z-index stacking issues so all cards are always clickable
-  const handleContainerClick = (e) => {
-    if (dragHasMoved.current) return; // Don't process clicks after dragging
-
-    const container = e.currentTarget;
-    const rect = container.getBoundingClientRect();
-    const centerX = rect.width / 2;
-    const clickX = e.clientX - rect.left;
-    const offsetFromCenter = clickX - centerX;
-
-    const spacing = isMobile ? 160 : 280;
-    const clickedOffset = Math.round(offsetFromCenter / spacing);
-    const clickedIndex = activeCard + clickedOffset;
-
-    if (clickedIndex >= 0 && clickedIndex < prizes.length) {
-      setActiveCard(clickedIndex);
-    }
-  };
-
-  // Arrow navigation
-  const goToPrevCard = () => {
-    if (activeCard > 0) {
-      setActiveCard(activeCard - 1);
-    }
-  };
-
-  const goToNextCard = () => {
-    if (activeCard < prizes.length - 1) {
-      setActiveCard(activeCard + 1);
-    }
-  };
-
   useEffect(() => {
     loadStats();
     loadEpisodes(); // Load episodes on mount to show current episode title
@@ -225,12 +121,6 @@ const Dashboard = () => {
     } finally {
       setPrizesLoading(false);
     }
-  };
-
-  // Show confirmation modal before redeeming
-  const handleRedeemClick = (tier) => {
-    if (tier.status !== 'unlocked' || claimingTier) return;
-    setConfirmRedeemPrize(tier);
   };
 
   // Actually redeem the prize after confirmation
@@ -373,9 +263,6 @@ const Dashboard = () => {
       document.removeEventListener('mousemove', handleModalMouseMove);
     };
   }, [confirmRedeemPrize, isMobile, handleModalMouseMove]);
-
-  // Legacy function name for compatibility
-  const handleClaimPrize = handleRedeemClick;
 
   // Watch for ?e= param in URL and update episode immediately
   useEffect(() => {
@@ -761,20 +648,49 @@ const Dashboard = () => {
       </div>
 
       <div style={{
-        background: '#0D0D0D',
-        border: '1px solid transparent',
-        backgroundImage: 'linear-gradient(#0D0D0D, #0D0D0D), linear-gradient(135deg, #FFF 0%, #5A2F30 100%)',
-        backgroundOrigin: 'border-box',
-        backgroundClip: 'padding-box, border-box',
-        borderRadius: isMobile ? '16px' : '10px',
-        padding: isMobile ? '20px 16px' : '0',
-        marginBottom: isMobile ? '16px' : '20px',
-        margin: isMobile ? '0 16px 16px 16px' : '0 0 20px 0',
+        position: 'relative',
+        background: 'radial-gradient(ellipse 120% 100% at 50% 50%, rgba(10, 10, 15, 0.98) 0%, rgba(5, 5, 10, 1) 100%)',
+        borderRadius: isMobile ? '16px' : '20px',
+        padding: isMobile ? '24px 20px' : '0',
+        marginBottom: isMobile ? '16px' : '24px',
+        margin: isMobile ? '0 16px 16px 16px' : '0 0 24px 0',
         display: isMobile ? 'block' : 'flex',
         flexWrap: 'wrap',
         overflow: showEpisodeSelector ? 'visible' : 'hidden',
-        height: (isMobile || showEpisodeSelector) ? 'auto' : '180px'
+        height: (isMobile || showEpisodeSelector) ? 'auto' : '200px',
+        boxShadow: `
+          inset 0 1px 0 rgba(255, 255, 255, 0.03),
+          inset 0 0 80px rgba(0, 0, 0, 0.6),
+          0 0 60px rgba(255, 255, 255, 0.02)
+        `,
       }}>
+        {/* Scan lines overlay */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          borderRadius: isMobile ? '16px' : '20px',
+          backgroundImage: `repeating-linear-gradient(
+            0deg,
+            transparent 0px,
+            transparent 3px,
+            rgba(0, 0, 0, 0.04) 3px,
+            rgba(0, 0, 0, 0.04) 4px
+          )`,
+          pointerEvents: 'none',
+          zIndex: 10,
+        }} />
+        {/* Ambient glow */}
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: '150%',
+          height: '200%',
+          background: 'radial-gradient(ellipse at center, rgba(255, 255, 255, 0.04) 0%, transparent 70%)',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }} />
         {/* Desktop: Thumbnail on Left - Clickable */}
         {!isMobile && selectedEpisode && (
           <div
@@ -836,12 +752,14 @@ const Dashboard = () => {
         {/* Content Section */}
         <div style={{
           flex: 1,
-          padding: isMobile ? '0' : '16px 20px',
+          padding: isMobile ? '0' : '20px 24px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
-          height: isMobile ? 'auto' : '180px',
-          overflow: 'hidden'
+          height: isMobile ? 'auto' : '200px',
+          overflow: 'hidden',
+          position: 'relative',
+          zIndex: 5,
         }}>
           {/* Header Row - Title + Change Episode Button */}
           {!isMobile && (
@@ -851,41 +769,57 @@ const Dashboard = () => {
               justifyContent: 'space-between',
               gap: '12px'
             }}>
-              <h2 style={{
-                color: '#FFF',
-                fontSize: '1.125rem',
-                margin: 0,
-                fontWeight: '600'
-              }}>Your Referral Link</h2>
+              <div>
+                <div style={{
+                  fontSize: '0.65rem',
+                  fontWeight: '500',
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                  letterSpacing: '0.2em',
+                  textTransform: 'uppercase',
+                  color: 'rgba(255, 255, 255, 0.4)',
+                  marginBottom: '6px',
+                }}>Share & Earn</div>
+                <h2 style={{
+                  color: '#FFF',
+                  fontSize: '1.25rem',
+                  margin: 0,
+                  fontWeight: '600',
+                  textShadow: '0 0 20px rgba(255, 255, 255, 0.15)',
+                }}>Your Referral Link</h2>
+              </div>
               <button
                 onClick={handleChangeEpisodeClick}
                 style={{
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  color: '#B5B5B5',
-                  padding: '8px 14px',
-                  borderRadius: '6px',
-                  fontSize: '0.875rem',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: 'rgba(255, 255, 255, 0.5)',
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  fontSize: '0.8rem',
                   fontWeight: '500',
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                  letterSpacing: '0.05em',
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease',
+                  transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '6px',
+                  gap: '8px',
                   flexShrink: 0
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.25)';
-                  e.currentTarget.style.color = '#FFF';
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                  e.currentTarget.style.color = 'rgba(255, 255, 255, 0.9)';
+                  e.currentTarget.style.boxShadow = '0 0 20px rgba(255, 255, 255, 0.05)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
-                  e.currentTarget.style.color = '#B5B5B5';
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                  e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)';
+                  e.currentTarget.style.boxShadow = 'none';
                 }}
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                 </svg>
@@ -896,21 +830,34 @@ const Dashboard = () => {
 
           {/* Mobile Title */}
           {isMobile && (
-            <h2 style={{
-              color: '#FFF',
-              fontSize: '1.125rem',
-              margin: 0,
-              marginBottom: '8px'
-            }}>Your Referral Link</h2>
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{
+                fontSize: '0.625rem',
+                fontWeight: '500',
+                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                letterSpacing: '0.2em',
+                textTransform: 'uppercase',
+                color: 'rgba(255, 255, 255, 0.4)',
+                marginBottom: '6px',
+              }}>Share & Earn</div>
+              <h2 style={{
+                color: '#FFF',
+                fontSize: '1.25rem',
+                margin: 0,
+                fontWeight: '600',
+                textShadow: '0 0 20px rgba(255, 255, 255, 0.15)',
+              }}>Your Referral Link</h2>
+            </div>
           )}
 
           <p style={{
-            color: '#B5B5B5',
-            fontSize: isMobile ? '0.9375rem' : '1rem',
-            lineHeight: '1.5',
+            color: 'rgba(255, 255, 255, 0.5)',
+            fontSize: isMobile ? '0.875rem' : '0.9375rem',
+            lineHeight: '1.6',
             margin: 0,
-            marginTop: isMobile ? '0' : '6px',
-            marginBottom: isMobile ? '20px' : '0'
+            marginTop: isMobile ? '0' : '8px',
+            marginBottom: isMobile ? '20px' : '0',
+            fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
           }}>
             {isMobile ? (
               <>Share this link to earn points!<br />Each unique click gives you 1 point.</>
@@ -963,105 +910,12 @@ const Dashboard = () => {
             </div>
           )}
 
-        {isMobile ? (
-          // Mobile: Stacked layout
-          <div style={{ marginBottom: showEpisodeSelector ? '24px' : '0' }}>
-            <div
-              onClick={copyToClipboard}
-              style={{
-                background: '#1B1B1B',
-                border: '1px solid rgba(255, 255, 255, 0.6)',
-                padding: '16px',
-                borderRadius: '12px',
-                marginBottom: '12px',
-                wordBreak: 'break-all',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <code style={{
-                color: '#B5B5B5',
-                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-                fontSize: '0.9375rem',
-                fontWeight: '400',
-                lineHeight: '1.5',
-                background: 'transparent',
-                display: 'block'
-              }}>{referralUrlWithEpisode}</code>
-            </div>
-            <button onClick={copyToClipboard} style={{
-              background: '#FFF',
-              color: '#000',
-              border: 'none',
-              padding: '14px',
-              borderRadius: '12px',
-              fontSize: '15px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              transition: 'all 0.3s ease',
-              width: '100%',
-              touchAction: 'manipulation'
-            }}>
-              {copied ? '✓ Copied!' : 'Copy Link'}
-            </button>
-          </div>
-        ) : (
-          // Desktop: Horizontal layout - Compact
-          <div
-            onClick={copyToClipboard}
-            style={{
-              background: '#1B1B1B',
-              border: '1px solid rgba(255, 255, 255, 0.6)',
-              padding: '10px 12px',
-              borderRadius: '8px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: '10px',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#252525';
-              e.currentTarget.querySelector('code').style.color = '#FFF';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#1B1B1B';
-              e.currentTarget.querySelector('code').style.color = '#B5B5B5';
-            }}
-          >
-            <code
-              style={{
-                flex: 1,
-                color: '#B5B5B5',
-                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-                fontSize: '0.875rem',
-                fontWeight: '400',
-                lineHeight: '1.3',
-                background: 'transparent',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                transition: 'color 0.2s ease',
-                padding: '4px 0'
-              }}
-            >{referralUrlWithEpisode}</code>
-            <button onClick={(e) => { e.stopPropagation(); copyToClipboard(); }} style={{
-              background: '#FFF',
-              color: '#000',
-              border: 'none',
-              padding: '10px 20px',
-              borderRadius: '6px',
-              fontSize: '1rem',
-              fontWeight: '600',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              flexShrink: 0
-            }}>
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
-          </div>
-        )}
+        <CopyLinkBar
+          url={referralUrlWithEpisode}
+          onCopy={copyToClipboard}
+          copied={copied}
+          isMobile={isMobile}
+        />
         </div>
 
         {/* Episode Selector - Expanded (Full Width) */}
@@ -1430,479 +1284,16 @@ const Dashboard = () => {
     {/* Prize Section - Full width, outside container */}
     <div style={{
       width: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
       marginTop: isMobile ? '2.5rem' : '4rem',
       marginBottom: isMobile ? '1.5rem' : '2rem'
     }}>
-        <h2 style={{
-          color: '#FFF',
-          textAlign: 'center',
-          fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-          fontSize: isMobile ? '1.75rem' : '2.1875rem',
-          fontStyle: 'normal',
-          fontWeight: '500',
-          lineHeight: isMobile ? '1.5rem' : '1.875rem',
-          letterSpacing: '0',
-          margin: '0',
-          marginBottom: isMobile ? '1rem' : '1.5rem',
-          padding: isMobile ? '0 16px' : '0'
-        }}>
-          Unlock Prizes
-        </h2>
-        <p style={{
-          color: '#B5B5B5',
-          textAlign: 'center',
-          fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-          fontSize: isMobile ? '0.875rem' : '0.9375rem',
-          fontStyle: 'normal',
-          fontWeight: '400',
-          lineHeight: '1.25rem',
-          letterSpacing: '0',
-          margin: '0',
-          marginBottom: isMobile ? '0.5rem' : '0.5rem',
-          padding: isMobile ? '0 16px' : '0'
-        }}>
-          {prizesLoading ? 'Loading prizes...' : (
-            eligibleCount > 0
-              ? `You're eligible for ${eligibleCount} prize${eligibleCount > 1 ? 's' : ''}!`
-              : 'Earn more points to unlock prizes'
-          )}
-        </p>
-
-
-        {/* Prize Cards - Full-width carousel */}
-        <div style={{
-          position: 'relative',
-          width: '100%',
-          height: isMobile ? '440px' : '560px',
-          overflow: 'hidden'
-        }}>
-          {/* Left edge bloom glow - visible when cards extend past left edge */}
-          <div style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: isMobile ? '80px' : '120px',
-            background: 'radial-gradient(ellipse 100% 60% at left center, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.06) 50%, transparent 80%)',
-            filter: 'blur(20px)',
-            pointerEvents: 'none',
-            zIndex: 10,
-            opacity: activeCard >= (isMobile ? 2 : 3) ? 1 : 0,
-            transition: 'opacity 0.3s ease'
-          }} />
-          {/* Right edge bloom glow - visible when cards extend past right edge */}
-          <div style={{
-            position: 'absolute',
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: isMobile ? '80px' : '120px',
-            background: 'radial-gradient(ellipse 100% 60% at right center, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.06) 50%, transparent 80%)',
-            filter: 'blur(20px)',
-            pointerEvents: 'none',
-            zIndex: 10,
-            opacity: activeCard <= prizes.length - (isMobile ? 3 : 4) ? 1 : 0,
-            transition: 'opacity 0.3s ease'
-          }} />
-          {/* Centered carousel area */}
-          <div style={{
-            position: 'relative',
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            perspective: '1500px'
-          }}>
-          {/* Draggable carousel area */}
-          <div
-            onClick={handleContainerClick}
-            onMouseDown={handleDragStart}
-            onMouseMove={handleDragMove}
-            onMouseUp={handleDragEnd}
-            onMouseLeave={handleDragEnd}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            style={{
-              position: 'relative',
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              cursor: isDragging ? 'grabbing' : 'grab',
-              touchAction: 'pan-y pinch-zoom',
-              userSelect: 'none'
-            }}
-          >
-            {prizes.map((prize, index) => {
-              const isMystery = prize.is_mystery;
-              const isLocked = prize.status === 'locked';
-              const isUnlocked = prize.status === 'unlocked';
-              const hasClaimedBefore = prize.has_claimed_before;
-              const isClaiming = claimingTier === prize.id;
-              const isActive = index === activeCard;
-              const isHovered = hoveredCard === index;
-
-              // Calculate position offset from active card
-              const offset = index - activeCard;
-              const spacing = isMobile ? 160 : 280;
-              const xOffset = offset * spacing + (isDragging ? dragOffset * 0.3 : 0);
-              const zOffset = Math.abs(offset) * -80;
-              const rotation = offset * (isMobile ? 3 : 4);
-              const scale = isActive ? (isMobile ? 1 : 1.05) : Math.max(0.8, 1 - Math.abs(offset) * 0.08);
-              const cardOpacity = Math.abs(offset) > (isMobile ? 2 : 4) ? 0 : 1;
-
-              // Get product image URL based on prize name
-              const getProductImage = () => {
-                if (prize.name.includes('Vol. 1') || prize.name.includes('Vol 1')) {
-                  return 'https://thediary.com/cdn/shop/files/1_e87b669d-04ab-4f85-81c8-df353bbb2188.png?v=1749210128&width=700';
-                }
-                if (prize.name.includes('Vol. 2') || prize.name.includes('Vol 2')) {
-                  return 'https://thediary.com/cdn/shop/files/1_b75fbc90-9bfe-49f2-baf5-3767c7992627.png?v=1762444332&width=700';
-                }
-                if (prize.name.includes('Vol. 3') || prize.name.includes('Vol 3') || prize.name.includes('Game Edition')) {
-                  return 'https://thediary.com/cdn/shop/files/CC3_Web_Image_3.jpg?v=1762859458&width=1000';
-                }
-                if (prize.name.includes('1% Diary') || prize.name.includes('Diary')) {
-                  return 'https://thediary.com/cdn/shop/files/No_matter_your_goal_1_d1605690-ab79-45f3-a83d-f9d21e8223bc.png?v=1763725505&width=1000';
-                }
-                return null;
-              };
-
-              const isDiscountCard = prize.prize_type === 'discount_code';
-              const productImage = getProductImage();
-
-              return (
-                <div
-                  key={prize.id}
-                  onMouseEnter={() => setHoveredCard(index)}
-                  onMouseLeave={() => setHoveredCard(null)}
-                  style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    width: isMobile ? '200px' : '300px',
-                    background: '#000',
-                    border: '1px solid transparent',
-                    backgroundImage: isActive || isHovered
-                      ? 'linear-gradient(#000, #000), linear-gradient(135deg, #FFF 0%, #5A2F30 100%)'
-                      : 'none',
-                    backgroundColor: '#000',
-                    backgroundOrigin: 'border-box',
-                    backgroundClip: 'padding-box, border-box',
-                    borderColor: isActive || isHovered ? 'transparent' : 'rgba(255, 255, 255, 0.2)',
-                    borderRadius: '16px',
-                    overflow: 'hidden',
-                    boxShadow: isActive
-                      ? '0 20px 60px rgba(0, 0, 0, 0.6)'
-                      : '0 10px 30px rgba(0, 0, 0, 0.4)',
-                    transform: `translate(-50%, -50%) translateX(${xOffset}px) translateZ(${zOffset}px) rotateY(${rotation}deg) scale(${scale})`,
-                    transition: isDragging ? 'none' : 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                    cursor: 'pointer',
-                    zIndex: prizes.length - Math.abs(offset),
-                    opacity: cardOpacity,
-                    display: 'flex',
-                    flexDirection: 'column'
-                  }}
-                >
-                  {/* Image Area */}
-                  <div style={{
-                    width: '100%',
-                    aspectRatio: '1',
-                    background: '#000',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                    position: 'relative',
-                    overflow: 'hidden'
-                  }}>
-                    {isDiscountCard ? (
-                      // Discount card with popup cards image
-                      <img
-                        src="https://thediary.com/cdn/shop/files/1_DIARY_PopUpCardsWhite.png?v=1764327518&width=800"
-                        alt={prize.name}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                          filter: isLocked ? 'grayscale(100%) brightness(0.5)' : 'none',
-                          transition: 'filter 0.3s ease'
-                        }}
-                      />
-                    ) : isMystery ? (
-                      // Mystery prize
-                      <img
-                        src="https://storage.googleapis.com/doac-perks/edited-photo.webp"
-                        alt="Mystery Prize"
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                          filter: isLocked ? 'grayscale(100%) brightness(0.5)' : 'none',
-                          transition: 'filter 0.3s ease'
-                        }}
-                      />
-                    ) : productImage ? (
-                      // Product image
-                      <img
-                        src={productImage}
-                        alt={prize.name}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                          filter: isLocked ? 'grayscale(100%) brightness(0.5)' : 'none',
-                          transition: 'filter 0.3s ease'
-                        }}
-                      />
-                    ) : (
-                      // Fallback for products without images (diaries)
-                      <span style={{
-                        color: '#FFF',
-                        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-                        fontSize: isMobile ? '1rem' : '1.2rem',
-                        fontWeight: '500',
-                        textAlign: 'center',
-                        padding: '20px'
-                      }}>
-                        {prize.name}
-                      </span>
-                    )}
-
-                    {/* Locked overlay */}
-                    {isLocked && (
-                      <div style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: 'rgba(0, 0, 0, 0.5)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        {isMystery ? (
-                          <span style={{
-                            fontSize: '3rem',
-                            fontWeight: '300',
-                            color: 'rgba(255, 255, 255, 0.5)',
-                            fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif'
-                          }}>?</span>
-                        ) : (
-                          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="4" y="11" width="16" height="10" rx="2"></rect>
-                            <path d="M8 11V8a4 4 0 1 1 8 0v3"></path>
-                            <circle cx="12" cy="16" r="1" fill="rgba(255,255,255,0.4)" stroke="none"></circle>
-                          </svg>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Title & Progress */}
-                  <div style={{
-                    padding: isMobile ? '12px' : '16px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '10px'
-                  }}>
-                    {/* Title */}
-                    <h3 style={{
-                      color: '#FFF',
-                      fontSize: isMobile ? '0.85rem' : '0.95rem',
-                      fontWeight: '500',
-                      margin: 0,
-                      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-                      textAlign: 'center'
-                    }}>
-                      {isMystery ? 'For the 1%' : isDiscountCard ? `${prize.name.replace(' Off', '')} off DOAC shop` : prize.name}
-                    </h3>
-
-                    {/* Progress Bar - hidden for mystery */}
-                    {!isMystery && (
-                      <div style={{
-                        background: 'rgba(255, 255, 255, 0.08)',
-                        borderRadius: '100px',
-                        height: '2px',
-                        overflow: 'hidden'
-                      }}>
-                        <div style={{
-                          background: prize.progress >= 100
-                            ? 'linear-gradient(90deg, rgba(255,255,255,0.8) 0%, #FFF 50%, rgba(255,255,255,0.8) 100%)'
-                            : 'rgba(255, 255, 255, 0.5)',
-                          height: '100%',
-                          width: `${prize.progress}%`,
-                          borderRadius: '100px',
-                          transition: 'width 0.5s ease'
-                        }} />
-                      </div>
-                    )}
-
-                    {/* Points needed or status */}
-                    <div style={{
-                      color: isUnlocked ? '#FFF' : 'rgba(255, 255, 255, 0.5)',
-                      fontSize: isMobile ? '0.7rem' : '0.75rem',
-                      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-                      textAlign: 'center'
-                    }}>
-                      {isMystery ? (
-                        <span style={{
-                          filter: 'blur(3.5px)',
-                          userSelect: 'none',
-                          fontSize: isMobile ? '0.85rem' : '0.9rem',
-                          fontWeight: '600',
-                          color: '#FFF'
-                        }}>?,???,??? pts</span>
-                      ) : `${prize.points_required.toLocaleString()} pts`}
-                    </div>
-
-                    {/* Redeemed before indicator */}
-                    {hasClaimedBefore && (
-                      <div style={{
-                        color: 'rgba(255, 255, 255, 0.4)',
-                        fontSize: isMobile ? '0.65rem' : '0.7rem',
-                        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-                        textAlign: 'center',
-                        fontStyle: 'italic'
-                      }}>
-                        Redeemed before
-                      </div>
-                    )}
-
-                    {/* Luxury Redeem button for unlocked prizes - static gold, shimmer on hover */}
-                    {isUnlocked && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleClaimPrize(prize); }}
-                        disabled={isClaiming}
-                        className="redeem-button-luxury"
-                        style={{
-                          width: '100%',
-                          background: isClaiming
-                            ? '#333'
-                            : 'linear-gradient(135deg, #FFD700 0%, #FFA500 25%, #FFD700 50%, #FFA500 75%, #FFD700 100%)',
-                          backgroundSize: '200% 200%',
-                          color: '#000',
-                          border: 'none',
-                          padding: isMobile ? '12px' : '14px',
-                          borderRadius: '10px',
-                          fontSize: isMobile ? '0.85rem' : '0.9rem',
-                          fontWeight: '700',
-                          fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-                          cursor: isClaiming ? 'wait' : 'pointer',
-                          transition: 'all 0.3s ease',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em',
-                          position: 'relative',
-                          overflow: 'hidden'
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!isClaiming) {
-                            e.currentTarget.style.transform = 'scale(1.03)';
-                            e.currentTarget.style.animation = 'shimmer 1.5s ease-in-out infinite';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.transform = 'scale(1)';
-                          e.currentTarget.style.animation = 'none';
-                        }}
-                      >
-                        {isClaiming ? 'Redeeming...' : 'Redeem'}
-                      </button>
-                    )}
-
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          </div>
-        </div>
-
-        {/* Navigation controls - arrows and dots */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: isMobile ? '16px' : '24px',
-          marginTop: '8px'
-        }}>
-          {/* Left Arrow */}
-          <button
-            onClick={goToPrevCard}
-            disabled={activeCard === 0}
-            style={{
-              background: activeCard === 0 ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.2)',
-              border: 'none',
-              borderRadius: '50%',
-              width: isMobile ? '44px' : '50px',
-              height: isMobile ? '44px' : '50px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: activeCard === 0 ? 'not-allowed' : 'pointer',
-              opacity: activeCard === 0 ? 0.3 : 1,
-              transition: 'all 0.2s ease',
-              boxShadow: '0 4px 15px rgba(0, 0, 0, 0.3)',
-              flexShrink: 0
-            }}
-            onMouseEnter={(e) => {
-              if (activeCard !== 0) {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
-                e.currentTarget.style.transform = 'scale(1.1)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = activeCard === 0 ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.2)';
-              e.currentTarget.style.transform = 'scale(1)';
-            }}
-          >
-            <svg width={isMobile ? "20" : "24"} height={isMobile ? "20" : "24"} viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-          </button>
-
-          {/* Right Arrow */}
-          <button
-            onClick={goToNextCard}
-            disabled={activeCard === prizes.length - 1}
-            style={{
-              background: activeCard === prizes.length - 1 ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.2)',
-              border: 'none',
-              borderRadius: '50%',
-              width: isMobile ? '44px' : '50px',
-              height: isMobile ? '44px' : '50px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: activeCard === prizes.length - 1 ? 'not-allowed' : 'pointer',
-              opacity: activeCard === prizes.length - 1 ? 0.3 : 1,
-              transition: 'all 0.2s ease',
-              boxShadow: '0 4px 15px rgba(0, 0, 0, 0.3)',
-              flexShrink: 0
-            }}
-            onMouseEnter={(e) => {
-              if (activeCard !== prizes.length - 1) {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
-                e.currentTarget.style.transform = 'scale(1.1)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = activeCard === prizes.length - 1 ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.2)';
-              e.currentTarget.style.transform = 'scale(1)';
-            }}
-          >
-            <svg width={isMobile ? "20" : "24"} height={isMobile ? "20" : "24"} viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-          </button>
-        </div>
+        <PrizeRail
+          prizes={prizes}
+          userPoints={userPoints}
+          onRedeem={(prize) => setConfirmRedeemPrize(prize)}
+          isMobile={isMobile}
+          claimingId={claimingTier}
+        />
 
         {/* Confirmation Modal - Before Redeeming */}
         {confirmRedeemPrize && (() => {
