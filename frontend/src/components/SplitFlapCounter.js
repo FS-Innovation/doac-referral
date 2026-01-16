@@ -134,14 +134,15 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
 
   // Trigger glitch effect on a specific digit (defined before handleMouseMove to avoid reference error)
   const triggerDigitGlitch = useCallback((index) => {
-    // Clear any existing timer for this digit
+    // If timer already running for this digit, let it continue naturally
     if (digitGlitchTimers.current[index]) {
-      clearInterval(digitGlitchTimers.current[index]);
+      return; // Don't interrupt - let current animation finish
     }
 
     let glitchCount = 0;
-    const maxGlitches = 8 + Math.floor(Math.random() * 6);
+    const maxGlitches = 6 + Math.floor(Math.random() * 4); // 6-9 cycles
     const timers = digitGlitchTimers.current;
+    const interval = 70 + Math.random() * 40; // 70-110ms per cycle - slower, more readable
 
     const glitch = () => {
       glitchCount++;
@@ -151,7 +152,7 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
           [index]: getGlitchChar()
         }));
       } else {
-        // Return to normal
+        // Return to normal - timer cleans itself up
         setDigitGlitchChars(prev => {
           const next = { ...prev };
           delete next[index];
@@ -162,7 +163,7 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
       }
     };
 
-    timers[index] = setInterval(glitch, 50 + Math.random() * 30);
+    timers[index] = setInterval(glitch, interval);
     glitch(); // Immediate first glitch
   }, [getGlitchChar]);
 
@@ -320,48 +321,70 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
         cancelAnimationFrame(hoverAnimationRef.current);
       }
 
-      // Smooth decay of effects
+      // Smooth decay of effects - everything fades naturally at a relaxed pace
+      // Using much slower decay rates (closer to 1.0 = slower fade)
       const decay = () => {
         let stillDecaying = false;
 
         setDisplacement(prev => {
           if (prev < 0.05) return 0;
           stillDecaying = true;
-          return prev * 0.88;
+          return prev * 0.97; // Much slower decay
         });
         setChromaticOffset(prev => ({
-          r: prev.r * 0.85,
+          r: prev.r * 0.96,
           g: 0,
-          b: prev.b * 0.85,
+          b: prev.b * 0.96,
         }));
         setMagneticPull(prev => {
           if (Math.abs(prev.x) > 0.01 || Math.abs(prev.y) > 0.01) stillDecaying = true;
           return {
-            x: prev.x * 0.88,
-            y: prev.y * 0.88,
+            x: prev.x * 0.97,
+            y: prev.y * 0.97,
           };
         });
-        setFlickerOpacity(prev => prev + (1 - prev) * 0.12);
+        // Decay mouse position back to center so digit wave returns to normal
+        setMousePos(prev => {
+          if (Math.abs(prev.x) > 0.01 || Math.abs(prev.y) > 0.01) stillDecaying = true;
+          return {
+            x: prev.x * 0.96,
+            y: prev.y * 0.96,
+          };
+        });
+        setFlickerOpacity(prev => prev + (1 - prev) * 0.03); // Slower return to 1
         setNoiseOffset(prev => ({
-          x: prev.x * 0.85,
-          y: prev.y * 0.85,
+          x: prev.x * 0.96,
+          y: prev.y * 0.96,
         }));
+        // Fade out particles naturally - slow fade
         setStaticParticles(prev => {
           if (prev.length === 0) return prev;
           stillDecaying = true;
-          // Fade out particles
-          return prev.map(p => ({ ...p, opacity: p.opacity * 0.85 }))
+          return prev.map(p => ({ ...p, opacity: p.opacity * 0.97 }))
             .filter(p => p.opacity > 0.02);
+        });
+        // Fade out film grain naturally - slow fade
+        setFilmGrain(prev => {
+          if (prev.length === 0) return prev;
+          stillDecaying = true;
+          return prev.map(g => ({ ...g, opacity: g.opacity * 0.98 }))
+            .filter(g => g.opacity > 0.01);
+        });
+        // Fade out glitch fragments naturally - slow fade
+        setGlitchFragments(prev => {
+          if (prev.length === 0) return prev;
+          stillDecaying = true;
+          return prev.map(f => ({ ...f, opacity: f.opacity * 0.96 }))
+            .filter(f => f.opacity > 0.01);
         });
 
         if (stillDecaying) {
           hoverAnimationRef.current = requestAnimationFrame(decay);
         } else {
-          setFilmGrain([]);
-          setGlitchFragments([]);
-          setStaticParticles([]);
+          // Final cleanup only after everything has naturally faded
+          // Don't clear digitGlitchChars - let the timers finish naturally
           setHoveredDigitIndex(-1);
-          setDigitGlitchChars({});
+          setWavePhase(0);
         }
       };
       hoverAnimationRef.current = requestAnimationFrame(decay);
@@ -438,7 +461,9 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
     return () => cancelAnimationFrame(animFrame);
   }, [ambientScanActive]);
 
-  const isActive = isAnimating || isHovering || displacement > 0.1;
+  // Always show the CRT background effect, intensify on hover/animation
+  const isActive = true;
+  const isIntense = isAnimating || isHovering || displacement > 0.1;
 
   // Value change animation
   useEffect(() => {
@@ -954,19 +979,16 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
         </>
       )}
 
-      {/* Ambient glow */}
+      {/* Ambient glow - constant CRT screen look */}
       <div
         style={{
           position: 'absolute',
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          width: isActive ? '200%' : '130%',
-          height: isActive ? '250%' : '160%',
-          background: `radial-gradient(ellipse at center,
-            ${isActive ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.02)'} 0%,
-            transparent 70%)`,
-          transition: 'all 1.2s cubic-bezier(0.16, 1, 0.3, 1)',
+          width: '200%',
+          height: '250%',
+          background: 'radial-gradient(ellipse at center, rgba(255, 255, 255, 0.05) 0%, transparent 70%)',
           pointerEvents: 'none',
           zIndex: 0,
         }}
@@ -1094,19 +1116,26 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
                     opacity: hasGlitchChar ? 0.15 : 1,
                   }}
                 >
-                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-                    <div
-                      key={n}
-                      style={{
-                        ...digitStyle,
-                        textShadow: isActive
-                          ? `0 0 ${15 + displacement}px rgba(255, 255, 255, ${0.4 + displacement * 0.02}), 0 0 ${30 + displacement * 2}px rgba(255, 255, 255, 0.2)`
-                          : 'none',
-                      }}
-                    >
-                      {n}
-                    </div>
-                  ))}
+                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => {
+                    // Calculate glow intensity based on displacement (decays gradually)
+                    const glowIntensity = Math.min(1, displacement / 5); // 0 to 1 based on displacement
+                    const baseGlow = 10;
+                    const maxExtraGlow = 15;
+                    const glowSize = baseGlow + (maxExtraGlow * glowIntensity) + (displacement * 0.5);
+                    const glowOpacity = 0.2 + (0.25 * glowIntensity);
+
+                    return (
+                      <div
+                        key={n}
+                        style={{
+                          ...digitStyle,
+                          textShadow: `0 0 ${glowSize}px rgba(255, 255, 255, ${glowOpacity}), 0 0 ${glowSize * 1.8}px rgba(255, 255, 255, ${glowOpacity * 0.5})`,
+                        }}
+                      >
+                        {n}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Digit-specific chromatic on hover */}
