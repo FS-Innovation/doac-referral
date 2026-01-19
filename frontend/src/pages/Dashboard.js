@@ -84,9 +84,9 @@ const Dashboard = () => {
     const checkProfileStatus = async () => {
       try {
         const response = await profileAPI.getCompletionStatus();
-        const { profileCompletedAt, profileCompletionSkipped } = response.data;
+        const { profileCompleted, profileSkipped } = response.data;
         // Show banner if profile not completed and not skipped
-        if (!profileCompletedAt && !profileCompletionSkipped) {
+        if (!profileCompleted && !profileSkipped) {
           setShowProfileBanner(true);
         }
       } catch (error) {

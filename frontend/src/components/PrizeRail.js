@@ -27,10 +27,9 @@ const PrizeRail = ({
   const [isHovering, setIsHovering] = useState(false);
   const targetMousePos = useRef({ x: 50, y: 50 });
 
-  // Card-specific glitch effects (screen breaking on hover)
-  const [cardGlitchChars, setCardGlitchChars] = useState([]);
-  const [cardGlitchLines, setCardGlitchLines] = useState([]);
-  const cardGlitchTimerRef = useRef(null);
+  // Card-specific hover effects - small static particles (matching points section)
+  const [staticParticles, setStaticParticles] = useState([]);
+  const [filmGrain, setFilmGrain] = useState([]);
 
   const containerRef = useRef(null);
   const cardRefs = useRef({});
@@ -55,41 +54,51 @@ const PrizeRail = ({
     return () => cancelAnimationFrame(animFrame);
   }, []);
 
-  // Create glitch characters for card hover effect (screen breaking)
-  const createCardGlitchChars = useCallback(() => {
-    const chars = [];
-    const count = 8 + Math.floor(Math.random() * 6); // 8-14 characters
+  // Create small static particles for card hover effect - slower, more intentional
+  const createStaticParticles = useCallback((centerX, centerY) => {
+    const particles = [];
+    const count = 6 + Math.floor(Math.random() * 4); // 6-10 particles (fewer, more intentional)
+    const spread = 80; // Wider spread for more ambient feel
+
     for (let i = 0; i < count; i++) {
-      chars.push({
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 30 + Math.random() * spread; // Start further from center
+      particles.push({
         id: i,
-        char: glitchChars[Math.floor(Math.random() * glitchChars.length)],
-        x: Math.random() * 100,
-        y: Math.random() * 100,
-        size: 10 + Math.random() * 14,
-        opacity: 0.15 + Math.random() * 0.25,
-        rotation: Math.random() * 30 - 15,
+        x: centerX + Math.cos(angle) * distance,
+        y: centerY + Math.sin(angle) * distance,
+        size: Math.random() * 2 + 1, // Slightly larger, more visible
+        opacity: Math.random() * 0.25 + 0.08, // Subtler
+        char: Math.random() > 0.8 ? glitchChars[Math.floor(Math.random() * glitchChars.length)] : null,
+        lifetime: Math.random() * 1.5 + 1, // Longer lifetime
       });
     }
-    return chars;
+    return particles;
   }, [glitchChars]);
 
-  // Create glitch lines for card hover effect (horizontal screen tears)
-  const createCardGlitchLines = useCallback(() => {
-    const lines = [];
-    const count = 2 + Math.floor(Math.random() * 3); // 2-4 lines
+  // Create film grain for hover effect
+  const createFilmGrain = useCallback((centerX = 50, centerY = 50) => {
+    const grains = [];
+    const count = isMobile ? 15 : 25;
     for (let i = 0; i < count; i++) {
-      lines.push({
+      // Some grains cluster near mouse, others are random
+      const nearMouse = Math.random() > 0.4;
+      const x = nearMouse
+        ? centerX + (Math.random() - 0.5) * 50
+        : Math.random() * 100;
+      const y = nearMouse
+        ? centerY + (Math.random() - 0.5) * 40
+        : Math.random() * 100;
+      grains.push({
         id: i,
-        y: 10 + Math.random() * 80, // 10-90% vertical position
-        width: 20 + Math.random() * 60, // 20-80% width
-        left: Math.random() * 40, // 0-40% left offset
-        height: 1 + Math.random() * 2,
-        opacity: 0.1 + Math.random() * 0.15,
-        skew: Math.random() * 8 - 4,
+        x,
+        y,
+        size: Math.random() * 2 + 0.5,
+        opacity: Math.random() * 0.15 + 0.03,
       });
     }
-    return lines;
-  }, []);
+    return grains;
+  }, [isMobile]);
 
   // Mouse tracking - update target, animation loop handles smooth interpolation
   const handleMouseMove = useCallback((e) => {
@@ -109,15 +118,29 @@ const PrizeRail = ({
     setIsHovering(false);
   }, []);
 
-  // Smooth hover animation loop (matching points section physics)
+  // Smooth hover animation loop with static particles (matching points section physics)
   useEffect(() => {
+    let frameCount = 0;
+
     if (isHovering && !isMobile) {
       const animateHover = () => {
+        frameCount++;
+
         // Smooth interpolation toward target (easing factor 0.08 for smooth movement)
         setMousePos(prev => ({
           x: prev.x + (targetMousePos.current.x - prev.x) * 0.08,
           y: prev.y + (targetMousePos.current.y - prev.y) * 0.08,
         }));
+
+        // Create static particles following mouse (every 8 frames - slower, more intentional)
+        if (frameCount % 8 === 0 && hoveredIndex !== null) {
+          setStaticParticles(createStaticParticles(targetMousePos.current.x, targetMousePos.current.y));
+        }
+
+        // Update film grain (every 12 frames - slower)
+        if (frameCount % 12 === 0 && hoveredIndex !== null) {
+          setFilmGrain(createFilmGrain(targetMousePos.current.x, targetMousePos.current.y));
+        }
 
         hoverAnimationRef.current = requestAnimationFrame(animateHover);
       };
@@ -138,6 +161,22 @@ const PrizeRail = ({
           return { x: newX, y: newY };
         });
 
+        // Fade out particles naturally
+        setStaticParticles(prev => {
+          if (prev.length === 0) return prev;
+          stillDecaying = true;
+          return prev.map(p => ({ ...p, opacity: p.opacity * 0.92 }))
+            .filter(p => p.opacity > 0.02);
+        });
+
+        // Fade out film grain naturally
+        setFilmGrain(prev => {
+          if (prev.length === 0) return prev;
+          stillDecaying = true;
+          return prev.map(g => ({ ...g, opacity: g.opacity * 0.95 }))
+            .filter(g => g.opacity > 0.01);
+        });
+
         if (stillDecaying) {
           hoverAnimationRef.current = requestAnimationFrame(decay);
         }
@@ -150,38 +189,7 @@ const PrizeRail = ({
         cancelAnimationFrame(hoverAnimationRef.current);
       }
     };
-  }, [isHovering, isMobile]);
-
-  // Card glitch effect - slower, less spazzy "screen breaking" on card hover
-  useEffect(() => {
-    if (hoveredIndex !== null && !isMobile) {
-      // Initial glitch burst
-      setCardGlitchChars(createCardGlitchChars());
-      setCardGlitchLines(createCardGlitchLines());
-
-      // Update glitch chars/lines slowly (every 400ms for calmer effect)
-      cardGlitchTimerRef.current = setInterval(() => {
-        setCardGlitchChars(createCardGlitchChars());
-        if (Math.random() > 0.5) {
-          setCardGlitchLines(createCardGlitchLines());
-        }
-      }, 400);
-    } else {
-      // Clear glitch effects when not hovering
-      if (cardGlitchTimerRef.current) {
-        clearInterval(cardGlitchTimerRef.current);
-        cardGlitchTimerRef.current = null;
-      }
-      setCardGlitchChars([]);
-      setCardGlitchLines([]);
-    }
-
-    return () => {
-      if (cardGlitchTimerRef.current) {
-        clearInterval(cardGlitchTimerRef.current);
-      }
-    };
-  }, [hoveredIndex, isMobile, createCardGlitchChars, createCardGlitchLines]);
+  }, [isHovering, isMobile, hoveredIndex, createStaticParticles, createFilmGrain]);
 
   // Generate glitch string matching the length of progress text (e.g., "10%" = 3 chars)
   const generateGlitchString = useCallback((length) => {
@@ -388,6 +396,7 @@ const PrizeRail = ({
         maxWidth: '100vw',
         position: 'relative',
         padding: isMobile ? '0' : '0 60px',
+        overflow: 'hidden', // Prevent particles from leaking outside
       }}
     >
       {/* Deep black CRT background */}
@@ -432,43 +441,59 @@ const PrizeRail = ({
         }} />
       )}
 
-      {/* Screen breaking glitch characters - appear on card hover */}
-      {!isMobile && hoveredIndex !== null && cardGlitchChars.map(gc => (
-        <span
-          key={`gc-${gc.id}`}
+      {/* Static particles that follow mouse - behind the card, slower, more intentional */}
+      {!isMobile && hoveredIndex !== null && staticParticles.map(particle => (
+        <div
+          key={`static-${particle.id}`}
           style={{
             position: 'absolute',
-            left: `${gc.x}%`,
-            top: `${gc.y}%`,
-            fontSize: `${gc.size}px`,
-            fontFamily: 'monospace',
-            color: `rgba(255, 255, 255, ${gc.opacity})`,
-            textShadow: `0 0 8px rgba(255, 255, 255, ${gc.opacity * 0.6})`,
-            transform: `translate(-50%, -50%) rotate(${gc.rotation}deg)`,
+            left: `${particle.x}%`,
+            top: `${particle.y}%`,
+            transform: 'translate(-50%, -50%)',
             pointerEvents: 'none',
-            zIndex: 4,
-            transition: 'opacity 0.15s ease',
+            zIndex: 5, // Behind the cards (cards are at zIndex 10+)
+            transition: 'opacity 0.3s ease', // Smooth fade
           }}
         >
-          {gc.char}
-        </span>
+          {particle.char ? (
+            <span
+              style={{
+                fontSize: `${10 + particle.size * 3}px`,
+                fontFamily: 'monospace',
+                color: `rgba(255, 255, 255, ${particle.opacity})`,
+                textShadow: `0 0 8px rgba(255, 255, 255, ${particle.opacity * 0.4})`,
+              }}
+            >
+              {particle.char}
+            </span>
+          ) : (
+            <div
+              style={{
+                width: `${particle.size}px`,
+                height: `${particle.size}px`,
+                borderRadius: '50%',
+                background: `rgba(255, 255, 255, ${particle.opacity})`,
+                boxShadow: `0 0 ${particle.size * 3}px rgba(255, 255, 255, ${particle.opacity * 0.25})`,
+              }}
+            />
+          )}
+        </div>
       ))}
 
-      {/* Screen breaking glitch lines - appear on card hover */}
-      {!isMobile && hoveredIndex !== null && cardGlitchLines.map(gl => (
+      {/* Film grain - also behind cards */}
+      {!isMobile && hoveredIndex !== null && filmGrain.map(grain => (
         <div
-          key={`gl-${gl.id}`}
+          key={`grain-${grain.id}`}
           style={{
             position: 'absolute',
-            left: `${gl.left}%`,
-            top: `${gl.y}%`,
-            width: `${gl.width}%`,
-            height: `${gl.height}px`,
-            background: `linear-gradient(90deg, transparent, rgba(255, 255, 255, ${gl.opacity}), transparent)`,
-            transform: `skewX(${gl.skew}deg)`,
+            left: `${grain.x}%`,
+            top: `${grain.y}%`,
+            width: `${grain.size}px`,
+            height: `${grain.size}px`,
+            borderRadius: '50%',
+            background: `rgba(255, 255, 255, ${grain.opacity})`,
             pointerEvents: 'none',
-            zIndex: 4,
-            transition: 'opacity 0.15s ease',
+            zIndex: 4, // Behind particles and cards
           }}
         />
       ))}

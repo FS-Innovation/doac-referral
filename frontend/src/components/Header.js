@@ -16,8 +16,12 @@ const Header = () => {
   return (
     <header className="app-header">
       <div className="header-container">
-        {/* Logo - Always visible */}
-        <div className="header-logo">
+        {/* Logo - Always visible, clicks to dashboard */}
+        <div
+          className="header-logo"
+          onClick={() => navigate('/dashboard')}
+          style={{ cursor: 'pointer' }}
+        >
           <img
             src="https://storage.googleapis.com/doac-perks/e4e508a04084eee9320c875b55dca2cec34de30b.png"
             alt="DOAC Logo"
