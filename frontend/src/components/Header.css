@@ -1,12 +1,12 @@
 /* Header Styles */
 .app-header {
-  position: sticky;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 1001;
   /* Glassmorphic background - semi-transparent black with blur */
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: none;

@@ -1,220 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-// Complete country list (ISO 3166-1)
-const COUNTRIES = [
-  { code: '', name: 'Country' },
-  { code: 'AF', name: 'Afghanistan' },
-  { code: 'AL', name: 'Albania' },
-  { code: 'DZ', name: 'Algeria' },
-  { code: 'AD', name: 'Andorra' },
-  { code: 'AO', name: 'Angola' },
-  { code: 'AG', name: 'Antigua and Barbuda' },
-  { code: 'AR', name: 'Argentina' },
-  { code: 'AM', name: 'Armenia' },
-  { code: 'AU', name: 'Australia' },
-  { code: 'AT', name: 'Austria' },
-  { code: 'AZ', name: 'Azerbaijan' },
-  { code: 'BS', name: 'Bahamas' },
-  { code: 'BH', name: 'Bahrain' },
-  { code: 'BD', name: 'Bangladesh' },
-  { code: 'BB', name: 'Barbados' },
-  { code: 'BY', name: 'Belarus' },
-  { code: 'BE', name: 'Belgium' },
-  { code: 'BZ', name: 'Belize' },
-  { code: 'BJ', name: 'Benin' },
-  { code: 'BT', name: 'Bhutan' },
-  { code: 'BO', name: 'Bolivia' },
-  { code: 'BA', name: 'Bosnia and Herzegovina' },
-  { code: 'BW', name: 'Botswana' },
-  { code: 'BR', name: 'Brazil' },
-  { code: 'BN', name: 'Brunei' },
-  { code: 'BG', name: 'Bulgaria' },
-  { code: 'BF', name: 'Burkina Faso' },
-  { code: 'BI', name: 'Burundi' },
-  { code: 'CV', name: 'Cabo Verde' },
-  { code: 'KH', name: 'Cambodia' },
-  { code: 'CM', name: 'Cameroon' },
-  { code: 'CA', name: 'Canada' },
-  { code: 'CF', name: 'Central African Republic' },
-  { code: 'TD', name: 'Chad' },
-  { code: 'CL', name: 'Chile' },
-  { code: 'CN', name: 'China' },
-  { code: 'CO', name: 'Colombia' },
-  { code: 'KM', name: 'Comoros' },
-  { code: 'CG', name: 'Congo' },
-  { code: 'CD', name: 'Congo (DRC)' },
-  { code: 'CR', name: 'Costa Rica' },
-  { code: 'CI', name: "Côte d'Ivoire" },
-  { code: 'HR', name: 'Croatia' },
-  { code: 'CU', name: 'Cuba' },
-  { code: 'CY', name: 'Cyprus' },
-  { code: 'CZ', name: 'Czech Republic' },
-  { code: 'DK', name: 'Denmark' },
-  { code: 'DJ', name: 'Djibouti' },
-  { code: 'DM', name: 'Dominica' },
-  { code: 'DO', name: 'Dominican Republic' },
-  { code: 'EC', name: 'Ecuador' },
-  { code: 'EG', name: 'Egypt' },
-  { code: 'SV', name: 'El Salvador' },
-  { code: 'GQ', name: 'Equatorial Guinea' },
-  { code: 'ER', name: 'Eritrea' },
-  { code: 'EE', name: 'Estonia' },
-  { code: 'SZ', name: 'Eswatini' },
-  { code: 'ET', name: 'Ethiopia' },
-  { code: 'FJ', name: 'Fiji' },
-  { code: 'FI', name: 'Finland' },
-  { code: 'FR', name: 'France' },
-  { code: 'GA', name: 'Gabon' },
-  { code: 'GM', name: 'Gambia' },
-  { code: 'GE', name: 'Georgia' },
-  { code: 'DE', name: 'Germany' },
-  { code: 'GH', name: 'Ghana' },
-  { code: 'GR', name: 'Greece' },
-  { code: 'GD', name: 'Grenada' },
-  { code: 'GT', name: 'Guatemala' },
-  { code: 'GN', name: 'Guinea' },
-  { code: 'GW', name: 'Guinea-Bissau' },
-  { code: 'GY', name: 'Guyana' },
-  { code: 'HT', name: 'Haiti' },
-  { code: 'HN', name: 'Honduras' },
-  { code: 'HK', name: 'Hong Kong' },
-  { code: 'HU', name: 'Hungary' },
-  { code: 'IS', name: 'Iceland' },
-  { code: 'IN', name: 'India' },
-  { code: 'ID', name: 'Indonesia' },
-  { code: 'IR', name: 'Iran' },
-  { code: 'IQ', name: 'Iraq' },
-  { code: 'IE', name: 'Ireland' },
-  { code: 'IL', name: 'Israel' },
-  { code: 'IT', name: 'Italy' },
-  { code: 'JM', name: 'Jamaica' },
-  { code: 'JP', name: 'Japan' },
-  { code: 'JO', name: 'Jordan' },
-  { code: 'KZ', name: 'Kazakhstan' },
-  { code: 'KE', name: 'Kenya' },
-  { code: 'KI', name: 'Kiribati' },
-  { code: 'KP', name: 'North Korea' },
-  { code: 'KR', name: 'South Korea' },
-  { code: 'KW', name: 'Kuwait' },
-  { code: 'KG', name: 'Kyrgyzstan' },
-  { code: 'LA', name: 'Laos' },
-  { code: 'LV', name: 'Latvia' },
-  { code: 'LB', name: 'Lebanon' },
-  { code: 'LS', name: 'Lesotho' },
-  { code: 'LR', name: 'Liberia' },
-  { code: 'LY', name: 'Libya' },
-  { code: 'LI', name: 'Liechtenstein' },
-  { code: 'LT', name: 'Lithuania' },
-  { code: 'LU', name: 'Luxembourg' },
-  { code: 'MO', name: 'Macau' },
-  { code: 'MG', name: 'Madagascar' },
-  { code: 'MW', name: 'Malawi' },
-  { code: 'MY', name: 'Malaysia' },
-  { code: 'MV', name: 'Maldives' },
-  { code: 'ML', name: 'Mali' },
-  { code: 'MT', name: 'Malta' },
-  { code: 'MH', name: 'Marshall Islands' },
-  { code: 'MR', name: 'Mauritania' },
-  { code: 'MU', name: 'Mauritius' },
-  { code: 'MX', name: 'Mexico' },
-  { code: 'FM', name: 'Micronesia' },
-  { code: 'MD', name: 'Moldova' },
-  { code: 'MC', name: 'Monaco' },
-  { code: 'MN', name: 'Mongolia' },
-  { code: 'ME', name: 'Montenegro' },
-  { code: 'MA', name: 'Morocco' },
-  { code: 'MZ', name: 'Mozambique' },
-  { code: 'MM', name: 'Myanmar' },
-  { code: 'NA', name: 'Namibia' },
-  { code: 'NR', name: 'Nauru' },
-  { code: 'NP', name: 'Nepal' },
-  { code: 'NL', name: 'Netherlands' },
-  { code: 'NZ', name: 'New Zealand' },
-  { code: 'NI', name: 'Nicaragua' },
-  { code: 'NE', name: 'Niger' },
-  { code: 'NG', name: 'Nigeria' },
-  { code: 'MK', name: 'North Macedonia' },
-  { code: 'NO', name: 'Norway' },
-  { code: 'OM', name: 'Oman' },
-  { code: 'PK', name: 'Pakistan' },
-  { code: 'PW', name: 'Palau' },
-  { code: 'PS', name: 'Palestine' },
-  { code: 'PA', name: 'Panama' },
-  { code: 'PG', name: 'Papua New Guinea' },
-  { code: 'PY', name: 'Paraguay' },
-  { code: 'PE', name: 'Peru' },
-  { code: 'PH', name: 'Philippines' },
-  { code: 'PL', name: 'Poland' },
-  { code: 'PT', name: 'Portugal' },
-  { code: 'PR', name: 'Puerto Rico' },
-  { code: 'QA', name: 'Qatar' },
-  { code: 'RO', name: 'Romania' },
-  { code: 'RU', name: 'Russia' },
-  { code: 'RW', name: 'Rwanda' },
-  { code: 'KN', name: 'Saint Kitts and Nevis' },
-  { code: 'LC', name: 'Saint Lucia' },
-  { code: 'VC', name: 'Saint Vincent and the Grenadines' },
-  { code: 'WS', name: 'Samoa' },
-  { code: 'SM', name: 'San Marino' },
-  { code: 'ST', name: 'São Tomé and Príncipe' },
-  { code: 'SA', name: 'Saudi Arabia' },
-  { code: 'SN', name: 'Senegal' },
-  { code: 'RS', name: 'Serbia' },
-  { code: 'SC', name: 'Seychelles' },
-  { code: 'SL', name: 'Sierra Leone' },
-  { code: 'SG', name: 'Singapore' },
-  { code: 'SK', name: 'Slovakia' },
-  { code: 'SI', name: 'Slovenia' },
-  { code: 'SB', name: 'Solomon Islands' },
-  { code: 'SO', name: 'Somalia' },
-  { code: 'ZA', name: 'South Africa' },
-  { code: 'SS', name: 'South Sudan' },
-  { code: 'ES', name: 'Spain' },
-  { code: 'LK', name: 'Sri Lanka' },
-  { code: 'SD', name: 'Sudan' },
-  { code: 'SR', name: 'Suriname' },
-  { code: 'SE', name: 'Sweden' },
-  { code: 'CH', name: 'Switzerland' },
-  { code: 'SY', name: 'Syria' },
-  { code: 'TW', name: 'Taiwan' },
-  { code: 'TJ', name: 'Tajikistan' },
-  { code: 'TZ', name: 'Tanzania' },
-  { code: 'TH', name: 'Thailand' },
-  { code: 'TL', name: 'Timor-Leste' },
-  { code: 'TG', name: 'Togo' },
-  { code: 'TO', name: 'Tonga' },
-  { code: 'TT', name: 'Trinidad and Tobago' },
-  { code: 'TN', name: 'Tunisia' },
-  { code: 'TR', name: 'Turkey' },
-  { code: 'TM', name: 'Turkmenistan' },
-  { code: 'TV', name: 'Tuvalu' },
-  { code: 'UG', name: 'Uganda' },
-  { code: 'UA', name: 'Ukraine' },
-  { code: 'AE', name: 'United Arab Emirates' },
-  { code: 'GB', name: 'United Kingdom' },
-  { code: 'US', name: 'United States' },
-  { code: 'UY', name: 'Uruguay' },
-  { code: 'UZ', name: 'Uzbekistan' },
-  { code: 'VU', name: 'Vanuatu' },
-  { code: 'VA', name: 'Vatican City' },
-  { code: 'VE', name: 'Venezuela' },
-  { code: 'VN', name: 'Vietnam' },
-  { code: 'YE', name: 'Yemen' },
-  { code: 'ZM', name: 'Zambia' },
-  { code: 'ZW', name: 'Zimbabwe' }
-];
-
-// Age ranges
-const AGE_RANGES = [
-  { value: '', label: 'Age' },
-  { value: '18-24', label: '18-24' },
-  { value: '25-34', label: '25-34' },
-  { value: '35-44', label: '35-44' },
-  { value: '45-54', label: '45-54' },
-  { value: '55+', label: '55+' }
-];
+// SIMPLIFIED REGISTRATION: Email, password, name (required), and terms
+// Profile data (interests, demographics, marketing prefs) collected after email verification
 
 const AuthModal = ({ mode: initialMode, onClose }) => {
   const [mode, setMode] = useState(initialMode); // 'login', 'register', 'forgot-password'
@@ -234,34 +23,9 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
   const [confirmPasswordFocused, setConfirmPasswordFocused] = useState(false);
   const [firstNameFocused, setFirstNameFocused] = useState(false);
 
-  // New registration fields
+  // Registration fields - SIMPLIFIED (only name and terms)
   const [firstName, setFirstName] = useState('');
-  const [ageRange, setAgeRange] = useState('');
-  const [country, setCountry] = useState('');
-  const [marketingConsent, setMarketingConsent] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
-
-  // Custom country dropdown state
-  const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
-  const [countrySearch, setCountrySearch] = useState('');
-  const countryDropdownRef = useRef(null);
-
-  // Filter countries based on search
-  const filteredCountries = COUNTRIES.filter(c =>
-    c.code === '' || c.name.toLowerCase().includes(countrySearch.toLowerCase())
-  );
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (countryDropdownRef.current && !countryDropdownRef.current.contains(event.target)) {
-        setCountryDropdownOpen(false);
-        setCountrySearch('');
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   // Password reset states
   const [successMessage, setSuccessMessage] = useState('');
@@ -321,17 +85,16 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
     ? 'Passwords do not match'
     : '';
 
+  // For registration, require email, password, confirm, name, and terms
   const canSubmit =
     email &&
     isEmailValid(email) &&
     password &&
     isPasswordValid(password) &&
     (mode === 'login' || (
+      firstName.trim() &&  // Name is required
       confirmPassword &&
       password === confirmPassword &&
-      firstName.trim() &&
-      ageRange &&
-      country &&
       termsAccepted
     )) &&
     !loading;
@@ -370,18 +133,19 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
 
     try {
       if (mode === 'register') {
+        // Profile data (interests, demographics, marketing) collected after email verification
         await register(sanitizedEmail, sanitizedPassword, {
-          firstName: firstName.trim(),
-          ageRange,
-          country,
-          marketingConsent,
+          firstName: firstName.trim(),  // Required
           termsAccepted  // LEGAL: Send explicit ToS acceptance to backend for audit trail
         });
+        onClose();
+        // After registration, go to email confirmation page (blocking step)
+        navigate('/confirm-email');
       } else {
         await login(sanitizedEmail, sanitizedPassword);
+        onClose();
+        navigate('/dashboard');
       }
-      onClose();
-      navigate('/dashboard');
     } catch (err) {
       // Display user-friendly error message from backend
       const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Authentication failed';
@@ -400,13 +164,7 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
     setPasswordTouched(false);
     // Reset registration-only fields
     setFirstName('');
-    setAgeRange('');
-    setCountry('');
-    setMarketingConsent(false);
     setTermsAccepted(false);
-    // Reset country dropdown state
-    setCountryDropdownOpen(false);
-    setCountrySearch('');
   };
 
   // Handle forgot password request
@@ -518,7 +276,7 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
     // Default: login/register form
     return (
       <form onSubmit={handleSubmit} className="modal-form" noValidate>
-          {/* First Name (Register only - appears first) */}
+          {/* First Name (Register only - REQUIRED) */}
           {mode === 'register' && (
             <div className={`form-group floating-label ${firstNameFocused || firstName ? 'focused' : ''}`}>
               <div className="input-wrapper">
@@ -529,14 +287,14 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
                   onChange={(e) => setFirstName(e.target.value)}
                   onFocus={() => setFirstNameFocused(true)}
                   onBlur={() => setFirstNameFocused(false)}
-                  required
                   maxLength={50}
                   className="modal-input"
                   autoComplete="given-name"
                   disabled={loading}
+                  required
                 />
                 <label htmlFor="firstName" className="floating-label-text">
-                  First name
+                  Name
                 </label>
               </div>
             </div>
@@ -716,153 +474,28 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
             </div>
           )}
 
-          {/* Additional Registration Fields */}
+          {/* Terms & Conditions - Required (only checkbox needed for simplified registration) */}
           {mode === 'register' && (
-            <>
-              {/* Age Range & Country - Responsive Grid */}
-              <div className="registration-grid">
-                {/* Age Range */}
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label htmlFor="ageRange" className="form-label">
-                    Age range
-                  </label>
-                  <div className="input-wrapper">
-                    <select
-                      id="ageRange"
-                      value={ageRange}
-                      onChange={(e) => setAgeRange(e.target.value)}
-                      required
-                      className="modal-input"
-                      disabled={loading}
-                      style={{ cursor: 'pointer', appearance: 'none', paddingRight: '40px' }}
-                    >
-                      {AGE_RANGES.map((range) => (
-                        <option key={range.value} value={range.value}>
-                          {range.label}
-                        </option>
-                      ))}
-                    </select>
-                    <div style={{
-                      position: 'absolute',
-                      right: '16px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      pointerEvents: 'none',
-                      color: 'rgba(255,255,255,0.5)'
-                    }}>
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M3 4.5L6 7.5L9 4.5"/>
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Country - Custom Dropdown */}
-                <div className="form-group" style={{ marginBottom: 0 }} ref={countryDropdownRef}>
-                  <label htmlFor="country" className="form-label">
-                    Country
-                  </label>
-                  <div className="input-wrapper" style={{ position: 'relative' }}>
-                    {/* Dropdown trigger button */}
-                    <button
-                      type="button"
-                      id="country"
-                      onClick={() => !loading && setCountryDropdownOpen(!countryDropdownOpen)}
-                      disabled={loading}
-                      className={`custom-dropdown-trigger ${!country ? 'placeholder' : ''}`}
-                    >
-                      {country ? COUNTRIES.find(c => c.code === country)?.name : 'Country'}
-                    </button>
-                    <div style={{
-                      position: 'absolute',
-                      right: '16px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      pointerEvents: 'none',
-                      color: 'rgba(255,255,255,0.5)'
-                    }}>
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d={countryDropdownOpen ? "M3 7.5L6 4.5L9 7.5" : "M3 4.5L6 7.5L9 4.5"}/>
-                      </svg>
-                    </div>
-
-                    {/* Dropdown panel */}
-                    {countryDropdownOpen && (
-                      <div className="custom-dropdown-panel">
-                        {/* Search input */}
-                        <div className="custom-dropdown-search">
-                          <input
-                            type="text"
-                            placeholder="Search countries..."
-                            value={countrySearch}
-                            onChange={(e) => setCountrySearch(e.target.value)}
-                            autoFocus
-                          />
-                        </div>
-                        {/* Scrollable options list */}
-                        <div className="custom-dropdown-list">
-                          {filteredCountries.filter(c => c.code !== '').map((c) => (
-                            <button
-                              key={c.code}
-                              type="button"
-                              onClick={() => {
-                                setCountry(c.code);
-                                setCountryDropdownOpen(false);
-                                setCountrySearch('');
-                              }}
-                              className={`custom-dropdown-option ${country === c.code ? 'selected' : ''}`}
-                            >
-                              {c.name}
-                            </button>
-                          ))}
-                          {filteredCountries.filter(c => c.code !== '').length === 0 && (
-                            <div className="custom-dropdown-empty">
-                              No countries found
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Consent Checkboxes */}
-              <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {/* Terms & Conditions - Required */}
-                <label className="consent-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={termsAccepted}
-                    onChange={(e) => setTermsAccepted(e.target.checked)}
-                    disabled={loading}
-                  />
-                  <span className="checkbox-label">
-                    I confirm I am 18+ and agree to the{' '}
-                    <a href="/terms-conditions" target="_blank" rel="noopener noreferrer">
-                      Terms & Conditions
-                    </a>
-                    {' '}and{' '}
-                    <a href="/privacy-policy" target="_blank" rel="noopener noreferrer">
-                      Privacy Policy
-                    </a>
-                  </span>
-                </label>
-
-                {/* Marketing Consent - Optional */}
-                <label className="consent-checkbox optional">
-                  <input
-                    type="checkbox"
-                    checked={marketingConsent}
-                    onChange={(e) => setMarketingConsent(e.target.checked)}
-                    disabled={loading}
-                  />
-                  <span className="checkbox-label">
-                    I'd like to receive marketing emails about products, offers, and news from DOAC
-                  </span>
-                </label>
-              </div>
-            </>
+            <div style={{ marginTop: '16px' }}>
+              <label className="consent-checkbox">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  disabled={loading}
+                />
+                <span className="checkbox-label">
+                  I confirm I am 18+ and agree to the{' '}
+                  <a href="/terms-conditions" target="_blank" rel="noopener noreferrer">
+                    Terms & Conditions
+                  </a>
+                  {' '}and{' '}
+                  <a href="/privacy-policy" target="_blank" rel="noopener noreferrer">
+                    Privacy Policy
+                  </a>
+                </span>
+              </label>
+            </div>
           )}
 
           {/* Error Message */}

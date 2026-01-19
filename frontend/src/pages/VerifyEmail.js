@@ -69,13 +69,17 @@ const VerifyEmail = () => {
   }, [searchParams, isAuthenticated, emailVerified, checkVerificationStatus]);
 
   // Countdown and redirect after success
+  // For new verifications, redirect to profile completion page
+  // For already-verified, go to dashboard
   useEffect(() => {
     if (status === 'success' || status === 'already-verified') {
       const timer = setInterval(() => {
         setCountdown((prev) => {
           if (prev <= 1) {
             clearInterval(timer);
-            navigate('/dashboard');
+            // New verification: redirect to profile completion
+            // Already verified: go to dashboard (they've already had a chance to complete profile)
+            navigate(status === 'success' ? '/profile/complete' : '/dashboard');
             return 0;
           }
           return prev - 1;
@@ -109,10 +113,10 @@ const VerifyEmail = () => {
             <h2 style={{ color: '#fff', marginBottom: '12px' }}>Email Verified!</h2>
             <p style={{ color: '#999', marginBottom: '24px' }}>{message}</p>
             <p style={{ color: '#999', fontSize: '14px' }}>
-              Redirecting to dashboard in {countdown} seconds...
+              Taking you to complete your profile in {countdown} seconds...
             </p>
             <button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/profile/complete')}
               style={{
                 marginTop: '20px',
                 padding: '12px 32px',
@@ -128,7 +132,7 @@ const VerifyEmail = () => {
                 cursor: 'pointer'
               }}
             >
-              Go to Dashboard
+              Complete Profile
             </button>
           </div>
         );

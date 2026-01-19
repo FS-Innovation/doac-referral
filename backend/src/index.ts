@@ -11,6 +11,8 @@ import referralRoutes from './routes/referral';
 import adminRoutes from './routes/admin';
 import episodesRoutes from './routes/episodes';
 import prizesRoutes from './routes/prizes';
+import profileRoutes from './routes/profile';
+import experimentsRoutes from './routes/experiments';
 import { generalLimiter, loginLimiter, registerLimiter, adminLimiter, ipBlocklist } from './middleware/rateLimiter';
 // import { initializeMetadataBackground } from './startup/initializeMetadata'; // DISABLED - causes DB connection timeouts
 
@@ -82,6 +84,8 @@ app.use('/api/referral', referralRoutes); // Has its own specific rate limiting
 app.use('/api/admin', adminLimiter, adminRoutes);
 app.use('/api/episodes', generalLimiter, episodesRoutes);
 app.use('/api/prizes', generalLimiter, prizesRoutes);
+app.use('/api/profile', profileRoutes); // Has its own auth middleware
+app.use('/api/experiments', experimentsRoutes); // Has its own auth middleware
 
 // Health check
 app.get('/health', (req, res) => {

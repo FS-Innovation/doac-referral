@@ -15,6 +15,8 @@ import CookiePolicy from './pages/CookiePolicy';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsConditions from './pages/TermsConditions';
 import VerifyEmail from './pages/VerifyEmail';
+import EmailConfirmation from './pages/EmailConfirmation';
+import ProfileCompletion from './pages/ProfileCompletion';
 
 // Authenticated route wrapper - redirects to dashboard if logged in
 function AuthenticatedRoute({ children }) {
@@ -35,7 +37,7 @@ function AuthenticatedRoute({ children }) {
 
 // Protected route wrapper - redirects to landing if not logged in
 function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, emailVerified } = useAuth();
 
   if (loading) {
     return <LoadingSpinner />;
@@ -44,6 +46,32 @@ function ProtectedRoute({ children }) {
   // If not authenticated, go to landing page
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;
+  }
+
+  // If authenticated but email not verified, go to email confirmation
+  if (!emailVerified) {
+    return <Navigate to="/confirm-email" replace />;
+  }
+
+  return children;
+}
+
+// Route for users who need to confirm their email (authenticated but unverified)
+function UnverifiedRoute({ children }) {
+  const { isAuthenticated, loading, emailVerified } = useAuth();
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  // If not authenticated, go to landing page
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+
+  // If already verified, go to dashboard
+  if (emailVerified) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;
@@ -64,8 +92,8 @@ function AppContent() {
   const location = useLocation();
   const { isAuthenticated } = useAuth();
 
-  // Only show header on dashboard (when authenticated)
-  const showHeader = isAuthenticated && location.pathname === '/dashboard';
+  // Show header on dashboard and profile pages (when authenticated)
+  const showHeader = isAuthenticated && (location.pathname === '/dashboard' || location.pathname === '/profile/complete');
 
   return (
     <div className="App">
@@ -90,13 +118,33 @@ function AppContent() {
         {/* Password reset - public */}
         <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* Email verification - public */}
+        {/* Email verification - public (link from email) */}
         <Route path="/verify-email" element={<VerifyEmail />} />
+
+        {/* Email confirmation - for unverified users after registration */}
+        <Route
+          path="/confirm-email"
+          element={
+            <UnverifiedRoute>
+              <EmailConfirmation />
+            </UnverifiedRoute>
+          }
+        />
 
         {/* Policy pages - public */}
         <Route path="/cookie-policy" element={<CookiePolicy />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms-conditions" element={<TermsConditions />} />
+
+        {/* Profile completion - only for authenticated users */}
+        <Route
+          path="/profile/complete"
+          element={
+            <ProtectedRoute>
+              <ProfileCompletion />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Dashboard - only for authenticated users */}
         <Route

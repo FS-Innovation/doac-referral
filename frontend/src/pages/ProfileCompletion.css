@@ -1,0 +1,694 @@
+/* ============================================
+   PROFILE COMPLETION - TWO COLUMN LAYOUT
+   ============================================ */
+
+/* Base page */
+.profile-completion-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 120px 24px 40px; /* Top padding for fixed header */
+  background: #000000;
+  position: relative;
+}
+
+/* Main container */
+.profile-completion-container {
+  width: 100%;
+  max-width: 1000px;
+  position: relative;
+}
+
+/* Header section */
+.profile-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.profile-header h1 {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 28px;
+  font-weight: 500;
+  color: #FFFFFF;
+  margin: 0 0 8px 0;
+  letter-spacing: -0.02em;
+}
+
+.profile-header .subtitle {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0;
+  font-weight: 400;
+}
+
+/* Two column layout */
+.profile-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+/* Column styling */
+.profile-column {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  padding: 24px;
+  min-height: 400px;
+}
+
+.filled-column {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.empty-column {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Column header */
+.column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.column-header h2 {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: #FFFFFF;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.column-badge {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: rgba(34, 197, 94, 0.1);
+  color: rgba(34, 197, 94, 0.9);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.column-badge.optional {
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.4);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Fields list */
+.fields-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Profile field - base */
+.profile-field {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+/* Filled field styling */
+.profile-field.filled {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.profile-field.filled:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Field header with label and edit button */
+.field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.field-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.field-value {
+  font-size: 14px;
+  color: #FFFFFF;
+  font-weight: 400;
+  line-height: 1.5;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Edit button */
+.edit-btn {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.edit-btn:hover {
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Editing state */
+.profile-field.editing {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.field-content {
+  margin-bottom: 16px;
+}
+
+.field-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.cancel-btn {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.cancel-btn:hover:not(:disabled) {
+  color: rgba(255, 255, 255, 0.8);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.save-btn {
+  font-size: 13px;
+  font-weight: 500;
+  color: #000;
+  background: #FFFFFF;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.save-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.save-btn:disabled,
+.cancel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Account field styling */
+.profile-field.account-field {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Divider between account info and profile fields */
+.fields-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 8px 0;
+}
+
+/* Password reset sent confirmation */
+.password-reset-sent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(34, 197, 94, 0.9);
+  font-size: 13px;
+}
+
+.password-reset-sent svg {
+  stroke: rgba(34, 197, 94, 0.9);
+}
+
+/* Empty field styling */
+.profile-field.empty-field {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.04);
+}
+
+.profile-field.empty-field .field-label {
+  margin-bottom: 12px;
+}
+
+/* Empty state */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.empty-state p {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 14px;
+  margin: 0;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.empty-state.complete {
+  color: rgba(34, 197, 94, 0.8);
+}
+
+.empty-state.complete svg {
+  margin-bottom: 12px;
+  stroke: rgba(34, 197, 94, 0.8);
+}
+
+.empty-state.complete p {
+  color: rgba(34, 197, 94, 0.8);
+}
+
+/* Error message */
+.profile-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  color: #fca5a5;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  margin-bottom: 24px;
+}
+
+/* Save all button */
+.profile-actions {
+  margin-top: 32px;
+  display: flex;
+  justify-content: center;
+}
+
+.save-all-btn {
+  padding: 14px 32px;
+  background: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  color: #000;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.save-all-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.9);
+  transform: translateY(-1px);
+}
+
+.save-all-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Loading state */
+.profile-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 16px;
+}
+
+.profile-loading .spinner {
+  width: 40px;
+  height: 40px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-top-color: rgba(255, 255, 255, 0.6);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.profile-loading p {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 14px;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ============================================
+   FORM COMPONENTS (kept from original)
+   ============================================ */
+
+/* Interest chips */
+.interest-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.interest-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.interest-chip:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.interest-chip.selected {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #FFFFFF;
+}
+
+.interest-chip .check-icon {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.interest-chip.selected .check-icon {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.interest-chip.selected .check-icon svg {
+  color: #000;
+}
+
+/* Gender options */
+.gender-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gender-option {
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.gender-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.gender-option.selected {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #FFFFFF;
+}
+
+/* DOB and Phone inputs */
+.dob-input-wrapper input,
+.dob-input-wrapper select,
+.phone-input-wrapper input {
+  width: 100%;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 14px;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  transition: all 0.2s ease;
+}
+
+.dob-input-wrapper input:focus,
+.dob-input-wrapper select:focus,
+.phone-input-wrapper input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dob-input-wrapper input::placeholder,
+.phone-input-wrapper input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.dob-input-wrapper select {
+  cursor: pointer;
+  appearance: none;
+  padding-right: 40px;
+}
+
+.dob-input-wrapper select option {
+  background: #0a0a0a;
+  color: #ffffff;
+}
+
+.dob-select-arrow {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.dob-input-wrapper {
+  position: relative;
+}
+
+.phone-input-wrapper {
+  position: relative;
+}
+
+/* Marketing preferences */
+.marketing-channels {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.marketing-channel {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.marketing-channel:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.marketing-channel input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  margin-top: 2px;
+  transition: all 0.2s ease;
+}
+
+.marketing-channel input[type="checkbox"]:checked {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.9);
+}
+
+.marketing-channel input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #000;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.marketing-channel-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.marketing-channel-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.marketing-channel-desc {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  line-height: 1.4;
+}
+
+/* Form section labels (for empty column) */
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ============================================
+   MOBILE RESPONSIVE
+   ============================================ */
+@media (max-width: 768px) {
+  .profile-completion-page {
+    padding: 100px 16px 32px;
+  }
+
+  .profile-columns {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .profile-column {
+    padding: 20px;
+    min-height: auto;
+  }
+
+  .profile-header h1 {
+    font-size: 24px;
+  }
+
+  .column-header h2 {
+    font-size: 14px;
+  }
+
+  .save-all-btn {
+    width: 100%;
+  }
+
+  .interest-chip {
+    padding: 7px 10px;
+    font-size: 11px;
+  }
+
+  .gender-option {
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-completion-page {
+    padding: 90px 12px 24px;
+  }
+
+  .profile-column {
+    padding: 16px;
+  }
+
+  .field-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .field-actions {
+    flex-direction: column;
+  }
+
+  .cancel-btn,
+  .save-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ============================================
+   REDUCED MOTION
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  .profile-loading .spinner {
+    animation: none;
+  }
+
+  .interest-chip,
+  .gender-option,
+  .edit-btn,
+  .save-btn,
+  .cancel-btn,
+  .save-all-btn,
+  .profile-field {
+    transition: none;
+  }
+}

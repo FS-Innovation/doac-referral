@@ -9,10 +9,11 @@ import crypto from 'crypto';
 import { sendPasswordResetEmail, sendVerificationEmail } from '../services/emailService';
 
 export const register = async (req: Request, res: Response) => {
-  const { email, password, firstName, ageRange, country, marketingConsent, termsAccepted } = req.body;
+  // SIMPLIFIED REGISTRATION: Only email, password, optional name, and terms acceptance
+  const { email, password, firstName, termsAccepted } = req.body;
 
   try {
-    // Validate input
+    // Validate required fields
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
@@ -33,43 +34,15 @@ export const register = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Password must be between 6 and 128 characters' });
     }
 
-    // Validate new required fields
-    if (!firstName || typeof firstName !== 'string' || firstName.trim().length === 0) {
-      return res.status(400).json({ error: 'First name is required' });
-    }
-
-    if (!ageRange || !['18-24', '25-34', '35-44', '45-54', '55+'].includes(ageRange)) {
-      return res.status(400).json({ error: 'Valid age range is required' });
-    }
-
-    // Validate country against ISO 3166-1 alpha-2 codes
-    const validCountryCodes = [
-      'AF', 'AL', 'DZ', 'AD', 'AO', 'AG', 'AR', 'AM', 'AU', 'AT', 'AZ', 'BS', 'BH', 'BD', 'BB',
-      'BY', 'BE', 'BZ', 'BJ', 'BT', 'BO', 'BA', 'BW', 'BR', 'BN', 'BG', 'BF', 'BI', 'CV', 'KH',
-      'CM', 'CA', 'CF', 'TD', 'CL', 'CN', 'CO', 'KM', 'CG', 'CD', 'CR', 'CI', 'HR', 'CU', 'CY',
-      'CZ', 'DK', 'DJ', 'DM', 'DO', 'EC', 'EG', 'SV', 'GQ', 'ER', 'EE', 'SZ', 'ET', 'FJ', 'FI',
-      'FR', 'GA', 'GM', 'GE', 'DE', 'GH', 'GR', 'GD', 'GT', 'GN', 'GW', 'GY', 'HT', 'HN', 'HK',
-      'HU', 'IS', 'IN', 'ID', 'IR', 'IQ', 'IE', 'IL', 'IT', 'JM', 'JP', 'JO', 'KZ', 'KE', 'KI',
-      'KP', 'KR', 'KW', 'KG', 'LA', 'LV', 'LB', 'LS', 'LR', 'LY', 'LI', 'LT', 'LU', 'MO', 'MG',
-      'MW', 'MY', 'MV', 'ML', 'MT', 'MH', 'MR', 'MU', 'MX', 'FM', 'MD', 'MC', 'MN', 'ME', 'MA',
-      'MZ', 'MM', 'NA', 'NR', 'NP', 'NL', 'NZ', 'NI', 'NE', 'NG', 'MK', 'NO', 'OM', 'PK', 'PW',
-      'PS', 'PA', 'PG', 'PY', 'PE', 'PH', 'PL', 'PT', 'PR', 'QA', 'RO', 'RU', 'RW', 'KN', 'LC',
-      'VC', 'WS', 'SM', 'ST', 'SA', 'SN', 'RS', 'SC', 'SL', 'SG', 'SK', 'SI', 'SB', 'SO', 'ZA',
-      'SS', 'ES', 'LK', 'SD', 'SR', 'SE', 'CH', 'SY', 'TW', 'TJ', 'TZ', 'TH', 'TL', 'TG', 'TO',
-      'TT', 'TN', 'TR', 'TM', 'TV', 'UG', 'UA', 'AE', 'GB', 'US', 'UY', 'UZ', 'VU', 'VA', 'VE',
-      'VN', 'YE', 'ZM', 'ZW'
-    ];
-    if (!country || typeof country !== 'string' || !validCountryCodes.includes(country.toUpperCase())) {
-      return res.status(400).json({ error: 'Valid country is required' });
-    }
-
     // LEGAL REQUIREMENT: Terms & Conditions must be explicitly accepted
     if (termsAccepted !== true) {
       return res.status(400).json({ error: 'You must accept the Terms & Conditions to create an account' });
     }
 
-    // Sanitize first name (remove potential XSS)
-    const sanitizedFirstName = firstName.trim().substring(0, 50).replace(/[<>]/g, '');
+    // Sanitize first name if provided (optional field)
+    const sanitizedFirstName = firstName
+      ? firstName.trim().substring(0, 50).replace(/[<>]/g, '')
+      : null;
 
     // Check if user already exists (using normalized email)
     // SECURITY: Always return same response to prevent email enumeration
@@ -95,13 +68,14 @@ export const register = async (req: Request, res: Response) => {
     const verificationToken = crypto.randomBytes(32).toString('base64url');
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    // Create user with profile data (using normalized email)
+    // Create user with minimal data (using normalized email)
     // LEGAL: Store terms_accepted_at timestamp for compliance/audit trail
+    // Profile data (interests, demographics, marketing prefs) will be collected after email verification
     const result = await pool.query<User>(
-      `INSERT INTO users (email, password_hash, referral_code, first_name, age_range, country, marketing_consent, email_verified, verification_token, verification_token_expires, verification_sent_at, terms_accepted_at, terms_version)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-       RETURNING id, email, referral_code, points, is_admin, created_at, first_name, age_range, country, email_verified`,
-      [normalizedEmail, hashedPassword, referralCode, sanitizedFirstName, ageRange, country.toUpperCase(), marketingConsent || false, false, verificationToken, verificationExpires, new Date(), new Date(), '2026-01-14']
+      `INSERT INTO users (email, password_hash, referral_code, first_name, email_verified, verification_token, verification_token_expires, verification_sent_at, terms_accepted_at, terms_version, profile_completion_step)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING id, email, referral_code, points, is_admin, created_at, first_name, email_verified, profile_completed_at, profile_completion_skipped`,
+      [normalizedEmail, hashedPassword, referralCode, sanitizedFirstName, false, verificationToken, verificationExpires, new Date(), new Date(), '2026-01-19', 0]
     );
 
     const user = result.rows[0];
@@ -110,7 +84,7 @@ export const register = async (req: Request, res: Response) => {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const verifyUrl = `${frontendUrl}/verify-email?token=${verificationToken}`;
     try {
-      await sendVerificationEmail(normalizedEmail, sanitizedFirstName, verifyUrl);
+      await sendVerificationEmail(normalizedEmail, sanitizedFirstName || 'there', verifyUrl);
       console.log(`📨 Verification email sent to ${normalizedEmail}`);
     } catch (emailError) {
       console.error('Failed to send verification email:', emailError);

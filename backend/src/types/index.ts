@@ -15,6 +15,16 @@ export interface User {
   verification_token: string | null;
   verification_token_expires: Date | null;
   verification_sent_at: Date | null;
+  // Profile completion fields
+  phone: string | null;
+  phone_verified: boolean;
+  gender: 'male' | 'female' | 'non_binary' | 'prefer_not_to_say' | null;
+  date_of_birth: Date | null;
+  dob_variant: 'date_picker' | 'age_range' | null;
+  profile_completed_at: Date | null;
+  profile_completion_skipped: boolean;
+  profile_completion_step: number;
+  completed_fields: string[];
   created_at: Date;
   updated_at: Date;
 }
@@ -95,4 +105,103 @@ export interface PrizeTierWithStatus extends PrizeTier {
   has_claimed_before: boolean; // Whether user has ever redeemed this prize
   claim_count: number; // Number of times user has redeemed this prize
   last_claimed_at?: Date; // When they last claimed it
+}
+
+// Profile Completion Types
+export interface Interest {
+  id: number;
+  slug: string;
+  display_name: string;
+  category_label: string;
+  display_order: number;
+  is_active: boolean;
+}
+
+export interface UserInterest {
+  id: number;
+  user_id: number;
+  interest_id: number;
+  created_at: Date;
+}
+
+export interface MarketingChannel {
+  id: number;
+  slug: string;
+  display_name: string;
+  description: string | null;
+  display_order: number;
+  is_active: boolean;
+}
+
+export interface UserMarketingPreference {
+  id: number;
+  user_id: number;
+  channel_id: number;
+  opted_in: boolean;
+  opted_in_at: Date | null;
+  opted_out_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+// A/B Testing Types
+export interface Experiment {
+  id: number;
+  slug: string;
+  name: string;
+  description: string | null;
+  variants: string[];
+  traffic_split: Record<string, number>;
+  is_active: boolean;
+  start_date: Date;
+  end_date: Date | null;
+  created_at: Date;
+}
+
+export interface UserExperimentAssignment {
+  id: number;
+  user_id: number;
+  experiment_id: number;
+  variant: string;
+  assigned_at: Date;
+  converted_at: Date | null;
+  conversion_data: Record<string, any> | null;
+}
+
+export interface ProfileCompletionAnalytics {
+  id: number;
+  user_id: number;
+  step: string;
+  action: 'started' | 'completed' | 'skipped' | 'abandoned';
+  fields_completed: string[] | null;
+  time_spent_seconds: number | null;
+  metadata: Record<string, any> | null;
+  created_at: Date;
+}
+
+// Profile Completion Request Types
+export interface ProfileCompletionData {
+  phone?: string;
+  interests?: string[];
+  gender?: 'male' | 'female' | 'non_binary' | 'prefer_not_to_say';
+  dobVariant?: 'date_picker' | 'age_range';
+  dateOfBirth?: string;
+  ageRange?: string;
+  marketingPreferences?: string[];
+}
+
+export interface ProfileCompletionStatus {
+  currentStep: 'verify_email' | 'profile_completion' | 'complete';
+  emailVerified: boolean;
+  profileCompleted: boolean;
+  profileSkipped: boolean;
+  completedFields: {
+    firstName: boolean;
+    phone: boolean;
+    gender: boolean;
+    dob: boolean;
+    country: boolean;
+    interests: boolean;
+    marketingPrefs: boolean;
+  };
 }

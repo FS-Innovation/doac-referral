@@ -95,6 +95,26 @@ export const prizeAPI = {
   getClaimed: () => api.get('/prizes/claimed')
 };
 
+// Profile completion endpoints
+export const profileAPI = {
+  getCompletionStatus: () => api.get('/profile/completion-status'),
+  completeProfile: (data) => api.post('/profile/complete', data),
+  skipProfile: () => api.post('/profile/skip'),
+  getInterests: () => api.get('/profile/interests'),
+  getMarketingChannels: () => api.get('/profile/marketing-channels'),
+  getUserInterests: () => api.get('/profile/user-interests'),
+  getUserMarketingPreferences: () => api.get('/profile/user-marketing-preferences'),
+  // Full profile management (for edit profile)
+  getProfile: () => api.get('/profile/me'),
+  updateProfile: (data) => api.put('/profile/me', data)
+};
+
+// A/B Experiment endpoints
+export const experimentAPI = {
+  getVariant: (slug) => api.get(`/experiments/${slug}/variant`),
+  recordConversion: (slug, data) => api.post(`/experiments/${slug}/convert`, data)
+};
+
 // Admin endpoints
 export const adminAPI = {
   // Products

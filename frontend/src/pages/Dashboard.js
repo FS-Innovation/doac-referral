@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { userAPI, episodesAPI, prizeAPI } from '../services/api';
+import { userAPI, episodesAPI, prizeAPI, profileAPI } from '../services/api';
 import SplitFlapCounter from '../components/SplitFlapCounter';
 import CopyLinkBar from '../components/CopyLinkBar';
 import PrizeRail from '../components/PrizeRail';
@@ -47,6 +47,11 @@ const Dashboard = () => {
   const [verificationMessage, setVerificationMessage] = useState('');
   const [verificationBannerDismissed, setVerificationBannerDismissed] = useState(false);
 
+  // Profile completion banner state
+  const [showProfileBanner, setShowProfileBanner] = useState(false);
+  const [profileBannerDismissing, setProfileBannerDismissing] = useState(false);
+  const navigate = useNavigate();
+
   // 3D Tilt effect state for confirmation card
   const [cardTilt, setCardTilt] = useState({ rotateX: 0, rotateY: 0 });
   const [glowOffset, setGlowOffset] = useState({ x: 0, y: 0 });
@@ -71,6 +76,37 @@ const Dashboard = () => {
       }
     } finally {
       setResendingVerification(false);
+    }
+  };
+
+  // Check profile completion status on mount
+  useEffect(() => {
+    const checkProfileStatus = async () => {
+      try {
+        const response = await profileAPI.getCompletionStatus();
+        const { profileCompletedAt, profileCompletionSkipped } = response.data;
+        // Show banner if profile not completed and not skipped
+        if (!profileCompletedAt && !profileCompletionSkipped) {
+          setShowProfileBanner(true);
+        }
+      } catch (error) {
+        // Silent fail - don't block dashboard for profile check
+        console.error('Failed to check profile status:', error);
+      }
+    };
+    checkProfileStatus();
+  }, []);
+
+  // Handle profile banner dismiss (skip profile completion)
+  const handleDismissProfileBanner = async () => {
+    setProfileBannerDismissing(true);
+    try {
+      await profileAPI.skipProfile();
+      setShowProfileBanner(false);
+    } catch (error) {
+      console.error('Failed to dismiss profile banner:', error);
+    } finally {
+      setProfileBannerDismissing(false);
     }
   };
 
@@ -581,7 +617,179 @@ const Dashboard = () => {
       </div>
     )}
 
-    <div className="container" style={{ padding: isMobile ? '10px' : '20px' }}>
+    {/* Profile Completion Banner - CRT/Glitch Style */}
+    {emailVerified && showProfileBanner && (
+      <div style={{
+        position: 'fixed',
+        bottom: isMobile ? '16px' : '24px',
+        right: isMobile ? '16px' : '24px',
+        background: 'rgba(8, 8, 12, 0.95)',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        borderRadius: '16px',
+        padding: '20px',
+        maxWidth: isMobile ? 'calc(100% - 32px)' : '340px',
+        zIndex: 1000,
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6), 0 0 60px rgba(255, 200, 150, 0.05)',
+        backdropFilter: 'blur(20px)',
+        overflow: 'hidden',
+      }}>
+        {/* CRT scan lines overlay */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          borderRadius: '16px',
+          backgroundImage: `repeating-linear-gradient(
+            0deg,
+            transparent 0px,
+            transparent 2px,
+            rgba(255, 255, 255, 0.015) 2px,
+            rgba(255, 255, 255, 0.015) 3px
+          )`,
+          pointerEvents: 'none',
+          zIndex: 1,
+        }} />
+
+        {/* Subtle vignette */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          borderRadius: '16px',
+          background: 'radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.3) 100%)',
+          pointerEvents: 'none',
+          zIndex: 1,
+        }} />
+
+        {/* Warm glow accent */}
+        <div style={{
+          position: 'absolute',
+          top: '-50%',
+          left: '-20%',
+          width: '140%',
+          height: '100%',
+          background: 'radial-gradient(ellipse at center, rgba(255, 200, 150, 0.08) 0%, transparent 60%)',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }} />
+
+        {/* Close button */}
+        <button
+          onClick={handleDismissProfileBanner}
+          disabled={profileBannerDismissing}
+          style={{
+            position: 'absolute',
+            top: '12px',
+            right: '12px',
+            background: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '50%',
+            width: '28px',
+            height: '28px',
+            color: 'rgba(255, 255, 255, 0.5)',
+            cursor: profileBannerDismissing ? 'wait' : 'pointer',
+            padding: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: profileBannerDismissing ? 0.5 : 1,
+            transition: 'all 0.2s ease',
+            zIndex: 2,
+          }}
+          title="Dismiss"
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+            e.currentTarget.style.color = 'rgba(255, 255, 255, 0.8)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+            e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)';
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+
+        {/* Content */}
+        <div style={{ position: 'relative', zIndex: 2 }}>
+          {/* Settings icon with glow */}
+          <div style={{
+            width: '44px',
+            height: '44px',
+            borderRadius: '12px',
+            background: 'rgba(255, 200, 150, 0.1)',
+            border: '1px solid rgba(255, 200, 150, 0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: '16px',
+            boxShadow: '0 0 20px rgba(255, 200, 150, 0.1)',
+          }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255, 200, 150, 0.9)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </div>
+
+          {/* Title */}
+          <h3 style={{
+            color: '#FFF',
+            fontSize: '15px',
+            fontWeight: '500',
+            margin: '0 0 6px 0',
+            lineHeight: '1.3',
+            fontFamily: 'Inter, -apple-system, sans-serif',
+            letterSpacing: '-0.01em',
+          }}>
+            Complete your profile
+          </h3>
+
+          {/* Description */}
+          <p style={{
+            color: 'rgba(255, 255, 255, 0.5)',
+            fontSize: '13px',
+            margin: '0 0 20px 0',
+            lineHeight: '1.5',
+            fontFamily: 'Inter, -apple-system, sans-serif',
+          }}>
+            Tell us more about yourself to personalize your experience
+          </p>
+
+          {/* Complete profile button */}
+          <button
+            onClick={() => navigate('/profile/complete')}
+            style={{
+              width: '100%',
+              padding: '12px 20px',
+              background: 'rgba(255, 250, 240, 0.95)',
+              border: 'none',
+              borderRadius: '10px',
+              color: '#1a1a1a',
+              fontSize: '14px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+              fontFamily: 'Inter, -apple-system, sans-serif',
+              boxShadow: '0 4px 12px rgba(255, 200, 150, 0.15)',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 8px 20px rgba(255, 200, 150, 0.25)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 200, 150, 0.15)';
+            }}
+          >
+            Complete Profile
+          </button>
+        </div>
+      </div>
+    )}
+
+    <div className="container" style={{ padding: isMobile ? '10px' : '20px', paddingTop: isMobile ? '80px' : '100px' }}>
       <div style={{
         display: 'flex',
         flexDirection: 'column',
