@@ -1,4 +1,4 @@
-const InterestSelector = ({ options, selected, onChange }) => {
+const InterestSelector = ({ options, selected, onChange, hideLabel = false }) => {
   const toggleInterest = (slug) => {
     if (selected.includes(slug)) {
       onChange(selected.filter(s => s !== slug));
@@ -8,8 +8,8 @@ const InterestSelector = ({ options, selected, onChange }) => {
   };
 
   return (
-    <div className="form-section">
-      <label className="form-section-label">What topics interest you?</label>
+    <div className={hideLabel ? "interest-selector-container" : "form-section"}>
+      {!hideLabel && <label className="form-section-label">What topics interest you?</label>}
       <div className="interest-chips">
         {options.map((interest) => (
           <button
@@ -29,7 +29,7 @@ const InterestSelector = ({ options, selected, onChange }) => {
           </button>
         ))}
       </div>
-      <p className="form-section-hint">Select all that apply</p>
+      {!hideLabel && <p className="form-section-hint">Select all that apply</p>}
     </div>
   );
 };

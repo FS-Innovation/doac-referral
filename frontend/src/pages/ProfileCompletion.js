@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import InterestSelector from '../components/profile/InterestSelector';
@@ -13,7 +13,19 @@ const ProfileCompletion = () => {
   const { user, emailVerified, refreshUser } = useAuth();
   const navigate = useNavigate();
 
-  // Form state
+  // Saved profile data (what's actually persisted)
+  const [savedProfile, setSavedProfile] = useState({
+    name: '',
+    phone: '',
+    interests: [],
+    gender: '',
+    dateOfBirth: '',
+    ageRange: '',
+    marketingPrefs: []
+  });
+
+  // Current form state (may have unsaved changes)
+  const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [interests, setInterests] = useState([]);
   const [gender, setGender] = useState('');
@@ -26,15 +38,68 @@ const ProfileCompletion = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [passwordResetSent, setPasswordResetSent] = useState(false);
   const [sendingReset, setSendingReset] = useState(false);
+  const [resetCooldown, setResetCooldown] = useState(0);
 
-  // Edit mode for individual sections
-  const [editingSection, setEditingSection] = useState(null); // 'phone', 'interests', 'gender', 'dob', 'marketing'
+  // Edit mode for filled fields
+  const [editingSection, setEditingSection] = useState(null);
+
+  // Focus states for floating labels
+  const [nameFocused, setNameFocused] = useState(false);
+  const [phoneFocused, setPhoneFocused] = useState(false);
 
   // Available options (loaded from API)
   const [availableInterests, setAvailableInterests] = useState([]);
   const [availableChannels, setAvailableChannels] = useState([]);
+
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = useCallback(() => {
+    return (
+      name !== savedProfile.name ||
+      phone !== savedProfile.phone ||
+      JSON.stringify(interests) !== JSON.stringify(savedProfile.interests) ||
+      gender !== savedProfile.gender ||
+      dateOfBirth !== savedProfile.dateOfBirth ||
+      ageRange !== savedProfile.ageRange ||
+      JSON.stringify(marketingPrefs) !== JSON.stringify(savedProfile.marketingPrefs)
+    );
+  }, [name, phone, interests, gender, dateOfBirth, ageRange, marketingPrefs, savedProfile]);
+
+  // Warn before leaving with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUnsavedChanges()) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  // Cooldown timer effect
+  useEffect(() => {
+    if (resetCooldown > 0) {
+      const timer = setTimeout(() => setResetCooldown(resetCooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resetCooldown]);
+
+  // Check localStorage for previous reset attempt
+  useEffect(() => {
+    const lastReset = localStorage.getItem('lastPasswordReset');
+    if (lastReset) {
+      const elapsed = Math.floor((Date.now() - parseInt(lastReset)) / 1000);
+      const cooldownTime = 60;
+      if (elapsed < cooldownTime) {
+        setResetCooldown(cooldownTime - elapsed);
+        setPasswordResetSent(true);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (user && !emailVerified) {
@@ -58,15 +123,30 @@ const ProfileCompletion = () => {
       setDobVariant(variantRes.data.variant);
 
       const profile = profileRes.data.profile;
-      if (profile) {
-        if (profile.phone) setPhone(profile.phone);
-        if (profile.interests?.length) setInterests(profile.interests);
-        if (profile.gender) setGender(profile.gender);
-        if (profile.dateOfBirth) setDateOfBirth(profile.dateOfBirth);
-        if (profile.ageRange) setAgeRange(profile.ageRange);
-        if (profile.marketingPreferences?.length) setMarketingPrefs(profile.marketingPreferences);
-        if (profile.dobVariant) setDobVariant(profile.dobVariant);
-      }
+      // Name comes from profile API (firstName) or user context (name)
+      const userName = profile?.firstName || user?.name || '';
+
+      // Set both saved and current state
+      const loadedProfile = {
+        name: userName,
+        phone: profile?.phone || '',
+        interests: profile?.interests || [],
+        gender: profile?.gender || '',
+        dateOfBirth: profile?.dateOfBirth || '',
+        ageRange: profile?.ageRange || '',
+        marketingPrefs: profile?.marketingPreferences || []
+      };
+
+      setSavedProfile(loadedProfile);
+      setName(loadedProfile.name);
+      setPhone(loadedProfile.phone);
+      setInterests(loadedProfile.interests);
+      setGender(loadedProfile.gender);
+      setDateOfBirth(loadedProfile.dateOfBirth);
+      setAgeRange(loadedProfile.ageRange);
+      setMarketingPrefs(loadedProfile.marketingPrefs);
+
+      if (profile?.dobVariant) setDobVariant(profile.dobVariant);
     } catch (err) {
       console.error('Error loading profile options:', err);
       setError('Failed to load options. Please try again.');
@@ -75,12 +155,14 @@ const ProfileCompletion = () => {
     }
   };
 
-  const handleSaveSection = async (section) => {
+  const handleSave = async () => {
     setSubmitting(true);
     setError('');
+    setSuccessMessage('');
 
     try {
       const profileData = {
+        firstName: name || undefined,
         phone: phone || undefined,
         interests,
         gender: gender || undefined,
@@ -92,7 +174,23 @@ const ProfileCompletion = () => {
 
       await profileAPI.updateProfile(profileData);
       await refreshUser();
+
+      // Update saved profile state
+      setSavedProfile({
+        name,
+        phone,
+        interests: [...interests],
+        gender,
+        dateOfBirth,
+        ageRange,
+        marketingPrefs: [...marketingPrefs]
+      });
+
       setEditingSection(null);
+      setSuccessMessage('Changes saved successfully');
+
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save. Please try again.');
     } finally {
@@ -100,12 +198,18 @@ const ProfileCompletion = () => {
     }
   };
 
-  const handleSaveAll = async () => {
+  const handleSaveAndReturn = async () => {
+    if (!hasUnsavedChanges()) {
+      navigate('/dashboard');
+      return;
+    }
+
     setSubmitting(true);
     setError('');
 
     try {
       const profileData = {
+        firstName: name || undefined,
         phone: phone || undefined,
         interests,
         gender: gender || undefined,
@@ -120,62 +224,85 @@ const ProfileCompletion = () => {
       navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save. Please try again.');
-    } finally {
       setSubmitting(false);
     }
   };
 
-  const handlePasswordReset = async () => {
-    if (!user?.email) return;
+  const handleDiscard = () => {
+    // Reset to saved values
+    setName(savedProfile.name);
+    setPhone(savedProfile.phone);
+    setInterests([...savedProfile.interests]);
+    setGender(savedProfile.gender);
+    setDateOfBirth(savedProfile.dateOfBirth);
+    setAgeRange(savedProfile.ageRange);
+    setMarketingPrefs([...savedProfile.marketingPrefs]);
+    setEditingSection(null);
+    setError('');
+  };
+
+  const handlePasswordReset = useCallback(async () => {
+    if (!user?.email || sendingReset || resetCooldown > 0) return;
 
     setSendingReset(true);
+    setError('');
+
     try {
       await authAPI.forgotPassword(user.email);
       setPasswordResetSent(true);
+      setResetCooldown(60);
+      localStorage.setItem('lastPasswordReset', Date.now().toString());
     } catch (err) {
-      setError('Failed to send password reset email. Please try again.');
+      if (err.response?.status === 429) {
+        const retryAfter = err.response?.data?.retryAfter || 3600;
+        setError(`Too many password reset requests. Please try again in ${Math.ceil(retryAfter / 60)} minutes.`);
+        setResetCooldown(Math.min(retryAfter, 300));
+      } else {
+        setError('Failed to send password reset email. Please try again.');
+      }
     } finally {
       setSendingReset(false);
     }
-  };
+  }, [user?.email, sendingReset, resetCooldown]);
 
-  // Helper to check if a field has data
-  const hasPhone = !!phone;
-  const hasInterests = interests.length > 0;
-  const hasGender = !!gender;
-  const hasDOB = !!dateOfBirth || !!ageRange;
-  const hasMarketing = marketingPrefs.length > 0;
+  // Check if fields have SAVED data (for determining which column)
+  const hasSavedName = !!savedProfile.name;
+  const hasSavedPhone = !!savedProfile.phone;
+  const hasSavedInterests = savedProfile.interests.length > 0;
+  const hasSavedGender = !!savedProfile.gender;
+  const hasSavedDOB = !!savedProfile.dateOfBirth || !!savedProfile.ageRange;
+  const hasSavedMarketing = savedProfile.marketingPrefs.length > 0;
 
-  // Get display values
-  const getInterestNames = () => {
-    return interests
-      .map(id => availableInterests.find(i => i.id === id)?.name)
+  // Get display values for saved data (backend uses slugs, not ids)
+  const getInterestNames = (interestSlugs) => {
+    return interestSlugs
+      .map(slug => availableInterests.find(i => i.slug === slug)?.display_name)
       .filter(Boolean)
       .join(', ');
   };
 
-  const getMarketingNames = () => {
-    return marketingPrefs
-      .map(id => availableChannels.find(c => c.id === id)?.name)
+  const getMarketingNames = (marketingSlugs) => {
+    return marketingSlugs
+      .map(slug => availableChannels.find(c => c.slug === slug)?.display_name)
       .filter(Boolean)
       .join(', ');
   };
 
-  const formatDOB = () => {
-    if (dateOfBirth) {
-      return new Date(dateOfBirth).toLocaleDateString('en-GB', {
+  const formatDOB = (dob, range) => {
+    if (dob) {
+      return new Date(dob).toLocaleDateString('en-GB', {
         day: 'numeric',
         month: 'long',
         year: 'numeric'
       });
     }
-    if (ageRange) return ageRange;
+    if (range) return range;
     return '';
   };
 
-  // Render a filled field with edit button
+  // Render a filled field with edit button (shows SAVED data)
   const renderFilledField = (label, value, section) => (
-    <div className="profile-field filled">
+    <div key={section} className="profile-field filled">
       <div className="field-header">
         <span className="field-label">{label}</span>
         <button
@@ -191,28 +318,12 @@ const ProfileCompletion = () => {
 
   // Render an editable field in edit mode
   const renderEditingField = (label, content, section) => (
-    <div className="profile-field editing">
+    <div key={section} className="profile-field editing">
       <div className="field-header">
         <span className="field-label">{label}</span>
       </div>
       <div className="field-content">
         {content}
-      </div>
-      <div className="field-actions">
-        <button
-          className="cancel-btn"
-          onClick={() => setEditingSection(null)}
-          disabled={submitting}
-        >
-          Cancel
-        </button>
-        <button
-          className="save-btn"
-          onClick={() => handleSaveSection(section)}
-          disabled={submitting}
-        >
-          {submitting ? 'Saving...' : 'Save'}
-        </button>
       </div>
     </div>
   );
@@ -228,44 +339,73 @@ const ProfileCompletion = () => {
     );
   }
 
-  // Separate filled and empty fields
+  // Build filled fields list (based on SAVED data)
   const filledFields = [];
+  if (hasSavedName) filledFields.push({ key: 'name', label: 'Name', value: savedProfile.name, section: 'name' });
+  if (hasSavedPhone) filledFields.push({ key: 'phone', label: 'Phone', value: savedProfile.phone, section: 'phone' });
+  if (hasSavedInterests) filledFields.push({ key: 'interests', label: 'Interests', value: getInterestNames(savedProfile.interests), section: 'interests' });
+  if (hasSavedGender) filledFields.push({ key: 'gender', label: 'Gender', value: savedProfile.gender, section: 'gender' });
+  if (hasSavedDOB) filledFields.push({ key: 'dob', label: 'Date of Birth', value: formatDOB(savedProfile.dateOfBirth, savedProfile.ageRange), section: 'dob' });
+  if (hasSavedMarketing) filledFields.push({ key: 'marketing', label: 'Marketing Preferences', value: getMarketingNames(savedProfile.marketingPrefs), section: 'marketing' });
+
+  // Build empty fields list (based on SAVED data)
   const emptyFields = [];
+  if (!hasSavedName) emptyFields.push({ key: 'name', section: 'name' });
+  if (!hasSavedPhone) emptyFields.push({ key: 'phone', section: 'phone' });
+  if (!hasSavedInterests) emptyFields.push({ key: 'interests', section: 'interests' });
+  if (!hasSavedGender) emptyFields.push({ key: 'gender', section: 'gender' });
+  if (!hasSavedDOB) emptyFields.push({ key: 'dob', section: 'dob' });
+  if (!hasSavedMarketing) emptyFields.push({ key: 'marketing', section: 'marketing' });
 
-  // Phone
-  if (hasPhone && editingSection !== 'phone') {
-    filledFields.push({ key: 'phone', label: 'Phone', value: phone, section: 'phone' });
-  } else {
-    emptyFields.push({ key: 'phone', section: 'phone' });
-  }
+  // Render name input with floating label for empty column
+  const renderNameInputFloating = () => (
+    <div className={`profile-floating-label ${nameFocused || name ? 'focused' : ''}`}>
+      <div className="profile-input-wrapper">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onFocus={() => setNameFocused(true)}
+          onBlur={() => setNameFocused(false)}
+          className="profile-input"
+        />
+        <label className="profile-floating-label-text">Name</label>
+      </div>
+    </div>
+  );
 
-  // Interests
-  if (hasInterests && editingSection !== 'interests') {
-    filledFields.push({ key: 'interests', label: 'Interests', value: getInterestNames(), section: 'interests' });
-  } else {
-    emptyFields.push({ key: 'interests', section: 'interests' });
-  }
+  // Render name input for edit mode (no floating label needed)
+  const renderNameInput = () => (
+    <input
+      type="text"
+      value={name}
+      onChange={(e) => setName(e.target.value)}
+      placeholder="Enter your name"
+      className="name-input"
+    />
+  );
 
-  // Gender
-  if (hasGender && editingSection !== 'gender') {
-    filledFields.push({ key: 'gender', label: 'Gender', value: gender, section: 'gender' });
-  } else {
-    emptyFields.push({ key: 'gender', section: 'gender' });
-  }
+  // Render phone input with floating label for empty column
+  const renderPhoneInputFloating = () => (
+    <div className={`profile-floating-label ${phoneFocused || phone ? 'focused' : ''}`}>
+      <div className="profile-input-wrapper">
+        <input
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          onFocus={() => setPhoneFocused(true)}
+          onBlur={() => setPhoneFocused(false)}
+          placeholder=""
+          autoComplete="tel"
+          className="profile-input"
+        />
+        <label className="profile-floating-label-text">Phone Number</label>
+      </div>
+      <p className="profile-input-hint">Include country code (e.g., +44 for UK)</p>
+    </div>
+  );
 
-  // DOB
-  if (hasDOB && editingSection !== 'dob') {
-    filledFields.push({ key: 'dob', label: 'Date of Birth', value: formatDOB(), section: 'dob' });
-  } else {
-    emptyFields.push({ key: 'dob', section: 'dob' });
-  }
-
-  // Marketing
-  if (hasMarketing && editingSection !== 'marketing') {
-    filledFields.push({ key: 'marketing', label: 'Marketing Preferences', value: getMarketingNames(), section: 'marketing' });
-  } else {
-    emptyFields.push({ key: 'marketing', section: 'marketing' });
-  }
+  const unsavedChanges = hasUnsavedChanges();
 
   return (
     <div className="profile-completion-page">
@@ -286,8 +426,18 @@ const ProfileCompletion = () => {
           </div>
         )}
 
+        {successMessage && (
+          <div className="profile-success">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+            {successMessage}
+          </div>
+        )}
+
         <div className="profile-columns">
-          {/* Left Column - Your Profile (account info + filled data) */}
+          {/* Left Column - Your Profile (account info + SAVED data) */}
           <div className="profile-column filled-column">
             <div className="column-header">
               <h2>Your Profile</h2>
@@ -295,14 +445,7 @@ const ProfileCompletion = () => {
             </div>
 
             <div className="fields-list">
-              {/* Account Info - Always shown */}
-              <div className="profile-field filled account-field">
-                <div className="field-header">
-                  <span className="field-label">Name</span>
-                </div>
-                <div className="field-value">{user?.name || 'Not set'}</div>
-              </div>
-
+              {/* Email - Always shown, not editable */}
               <div className="profile-field filled account-field">
                 <div className="field-header">
                   <span className="field-label">Email</span>
@@ -310,10 +453,11 @@ const ProfileCompletion = () => {
                 <div className="field-value">{user?.email}</div>
               </div>
 
+              {/* Password */}
               <div className="profile-field filled account-field">
                 <div className="field-header">
                   <span className="field-label">Password</span>
-                  {!passwordResetSent ? (
+                  {!passwordResetSent && resetCooldown === 0 ? (
                     <button
                       className="edit-btn"
                       onClick={handlePasswordReset}
@@ -321,6 +465,8 @@ const ProfileCompletion = () => {
                     >
                       {sendingReset ? 'Sending...' : 'Change'}
                     </button>
+                  ) : resetCooldown > 0 ? (
+                    <span className="cooldown-text">{resetCooldown}s</span>
                   ) : null}
                 </div>
                 <div className="field-value">
@@ -341,27 +487,55 @@ const ProfileCompletion = () => {
               {/* Divider between account and profile info */}
               {filledFields.length > 0 && <div className="fields-divider" />}
 
-              {/* Other filled profile fields */}
-              {filledFields.map(field => (
-                editingSection === field.section ? (
+              {/* Filled profile fields - show SAVED data or editing form */}
+              {filledFields.map(field => {
+                // Interests and Marketing always show as interactive selectors (not text)
+                if (field.section === 'interests') {
+                  return (
+                    <div key={field.key} className="profile-field filled">
+                      <div className="field-header">
+                        <span className="field-label">Interests</span>
+                      </div>
+                      <div className="field-content">
+                        <InterestSelector options={availableInterests} selected={interests} onChange={setInterests} hideLabel />
+                      </div>
+                    </div>
+                  );
+                }
+                if (field.section === 'marketing') {
+                  return (
+                    <div key={field.key} className="profile-field filled">
+                      <div className="field-header">
+                        <span className="field-label">Marketing Preferences</span>
+                      </div>
+                      <div className="field-content">
+                        <MarketingPreferences channels={availableChannels} selected={marketingPrefs} onChange={setMarketingPrefs} hideLabel />
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Other fields use edit button pattern
+                return editingSection === field.section ? (
                   <div key={field.key}>
+                    {field.section === 'name' && renderEditingField('Name', renderNameInput(), 'name')}
                     {field.section === 'phone' && renderEditingField('Phone',
-                      <PhoneInput value={phone} onChange={setPhone} />, 'phone')}
-                    {field.section === 'interests' && renderEditingField('Interests',
-                      <InterestSelector options={availableInterests} selected={interests} onChange={setInterests} />, 'interests')}
+                      <PhoneInput value={phone} onChange={setPhone} hideLabel />, 'phone')}
                     {field.section === 'gender' && renderEditingField('Gender',
-                      <GenderSelector value={gender} onChange={setGender} />, 'gender')}
+                      <GenderSelector value={gender} onChange={setGender} hideLabel />, 'gender')}
                     {field.section === 'dob' && renderEditingField('Date of Birth',
-                      <DOBInput variant={dobVariant} dateValue={dateOfBirth} onDateChange={setDateOfBirth} ageRangeValue={ageRange} onAgeRangeChange={setAgeRange} />, 'dob')}
-                    {field.section === 'marketing' && renderEditingField('Marketing Preferences',
-                      <MarketingPreferences channels={availableChannels} selected={marketingPrefs} onChange={setMarketingPrefs} />, 'marketing')}
+                      <DOBInput variant={dobVariant} dateValue={dateOfBirth} onDateChange={setDateOfBirth} ageRangeValue={ageRange} onAgeRangeChange={setAgeRange} hideLabel />, 'dob')}
                   </div>
                 ) : (
-                  <div key={field.key}>
-                    {renderFilledField(field.label, field.value, field.section)}
-                  </div>
-                )
-              ))}
+                  renderFilledField(field.label, field.value, field.section)
+                );
+              })}
+
+              {filledFields.length === 0 && (
+                <div className="empty-state">
+                  <p>Add some information to personalize your profile</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -376,35 +550,34 @@ const ProfileCompletion = () => {
               <div className="fields-list">
                 {emptyFields.map(field => (
                   <div key={field.key} className="profile-field empty-field">
-                    {field.section === 'phone' && (
-                      <>
-                        <div className="field-label">Phone</div>
-                        <PhoneInput value={phone} onChange={setPhone} />
-                      </>
-                    )}
+                    {field.section === 'name' && renderNameInputFloating()}
+                    {field.section === 'phone' && renderPhoneInputFloating()}
                     {field.section === 'interests' && (
-                      <>
-                        <div className="field-label">Interests</div>
-                        <InterestSelector options={availableInterests} selected={interests} onChange={setInterests} />
-                      </>
+                      <div className="profile-section-field">
+                        <div className="profile-section-label">Interests</div>
+                        <InterestSelector options={availableInterests} selected={interests} onChange={setInterests} hideLabel />
+                        <p className="profile-input-hint">Select all that apply</p>
+                      </div>
                     )}
                     {field.section === 'gender' && (
-                      <>
-                        <div className="field-label">Gender</div>
-                        <GenderSelector value={gender} onChange={setGender} />
-                      </>
+                      <div className="profile-section-field">
+                        <div className="profile-section-label">Gender</div>
+                        <GenderSelector value={gender} onChange={setGender} hideLabel />
+                      </div>
                     )}
                     {field.section === 'dob' && (
-                      <>
-                        <div className="field-label">Date of Birth</div>
-                        <DOBInput variant={dobVariant} dateValue={dateOfBirth} onDateChange={setDateOfBirth} ageRangeValue={ageRange} onAgeRangeChange={setAgeRange} />
-                      </>
+                      <div className="profile-section-field">
+                        <div className="profile-section-label">{dobVariant === 'date_picker' ? 'Date of Birth' : 'Age Range'}</div>
+                        <DOBInput variant={dobVariant} dateValue={dateOfBirth} onDateChange={setDateOfBirth} ageRangeValue={ageRange} onAgeRangeChange={setAgeRange} hideLabel />
+                        {dobVariant === 'date_picker' && <p className="profile-input-hint">Must be 18 or older</p>}
+                      </div>
                     )}
                     {field.section === 'marketing' && (
-                      <>
-                        <div className="field-label">Marketing Preferences</div>
-                        <MarketingPreferences channels={availableChannels} selected={marketingPrefs} onChange={setMarketingPrefs} />
-                      </>
+                      <div className="profile-section-field">
+                        <div className="profile-section-label">Stay in touch</div>
+                        <p className="profile-input-hint" style={{ marginBottom: '12px' }}>Choose how you'd like to hear from us</p>
+                        <MarketingPreferences channels={availableChannels} selected={marketingPrefs} onChange={setMarketingPrefs} hideLabel />
+                      </div>
                     )}
                   </div>
                 ))}
@@ -420,17 +593,43 @@ const ProfileCompletion = () => {
             )}
           </div>
         </div>
+      </div>
 
-        {/* Save All Button */}
-        <div className="profile-actions">
-          <button
-            className="save-all-btn"
-            onClick={handleSaveAll}
-            disabled={submitting}
-          >
-            {submitting ? 'Saving...' : 'Save & Return to Dashboard'}
-          </button>
+      {/* Sticky Save Bar */}
+      <div className={`save-bar ${unsavedChanges ? 'visible' : ''}`}>
+        <div className="save-bar-content">
+          <div className="save-bar-message">
+            <div className="unsaved-indicator"></div>
+            <span>You have unsaved changes</span>
+          </div>
+          <div className="save-bar-actions">
+            <button
+              className="discard-btn"
+              onClick={handleDiscard}
+              disabled={submitting}
+            >
+              Discard
+            </button>
+            <button
+              className="save-btn"
+              onClick={handleSave}
+              disabled={submitting}
+            >
+              {submitting ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
         </div>
+      </div>
+
+      {/* Bottom Actions - Always visible */}
+      <div className="profile-actions">
+        <button
+          className="return-btn"
+          onClick={handleSaveAndReturn}
+          disabled={submitting}
+        >
+          {submitting ? 'Saving...' : unsavedChanges ? 'Save & Return to Dashboard' : 'Return to Dashboard'}
+        </button>
       </div>
     </div>
   );

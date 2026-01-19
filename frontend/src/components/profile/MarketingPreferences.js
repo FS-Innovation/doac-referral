@@ -1,4 +1,4 @@
-const MarketingPreferences = ({ channels, selected, onChange }) => {
+const MarketingPreferences = ({ channels, selected, onChange, hideLabel = false }) => {
   const toggleChannel = (slug) => {
     if (selected.includes(slug)) {
       onChange(selected.filter(s => s !== slug));
@@ -8,11 +8,15 @@ const MarketingPreferences = ({ channels, selected, onChange }) => {
   };
 
   return (
-    <div className="form-section">
-      <label className="form-section-label">Stay in touch</label>
-      <p className="form-section-hint" style={{ marginBottom: '12px' }}>
-        Choose how you'd like to hear from us
-      </p>
+    <div className={hideLabel ? "marketing-prefs-container" : "form-section"}>
+      {!hideLabel && (
+        <>
+          <label className="form-section-label">Stay in touch</label>
+          <p className="form-section-hint" style={{ marginBottom: '12px' }}>
+            Choose how you'd like to hear from us
+          </p>
+        </>
+      )}
       <div className="marketing-channels">
         {channels.map((channel) => (
           <label key={channel.slug} className="marketing-channel">

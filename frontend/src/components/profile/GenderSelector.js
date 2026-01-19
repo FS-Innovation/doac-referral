@@ -5,10 +5,10 @@ const GENDER_OPTIONS = [
   { value: 'prefer_not_to_say', label: 'Prefer not to say' }
 ];
 
-const GenderSelector = ({ value, onChange }) => {
+const GenderSelector = ({ value, onChange, hideLabel = false }) => {
   return (
-    <div className="form-section">
-      <label className="form-section-label">Gender</label>
+    <div className={hideLabel ? "gender-selector-container" : "form-section"}>
+      {!hideLabel && <label className="form-section-label">Gender</label>}
       <div className="gender-options">
         {GENDER_OPTIONS.map((option) => (
           <button

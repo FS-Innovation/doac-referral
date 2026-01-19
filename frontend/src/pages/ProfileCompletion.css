@@ -6,9 +6,9 @@
 .profile-completion-page {
   min-height: 100vh;
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 120px 24px 40px; /* Top padding for fixed header */
+  flex-direction: column;
+  align-items: center;
+  padding: 120px 24px 120px; /* Top padding for fixed header, bottom for save bar */
   background: #000000;
   position: relative;
 }
@@ -93,9 +93,9 @@
   letter-spacing: 0.05em;
   padding: 4px 10px;
   border-radius: 20px;
-  background: rgba(34, 197, 94, 0.1);
-  color: rgba(34, 197, 94, 0.9);
-  border: 1px solid rgba(34, 197, 94, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .column-badge.optional {
@@ -249,12 +249,43 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: rgba(34, 197, 94, 0.9);
+  color: rgba(255, 255, 255, 0.6);
   font-size: 13px;
 }
 
 .password-reset-sent svg {
-  stroke: rgba(34, 197, 94, 0.9);
+  stroke: rgba(255, 255, 255, 0.5);
+}
+
+/* Cooldown text */
+.cooldown-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Name input */
+.name-input {
+  width: 100%;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 14px;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  transition: all 0.2s ease;
+}
+
+.name-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.name-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
 }
 
 /* Empty field styling */
@@ -265,6 +296,98 @@
 
 .profile-field.empty-field .field-label {
   margin-bottom: 12px;
+}
+
+/* ============================================
+   FLOATING LABELS - Profile Page Style
+   More visible than AuthModal variant
+   ============================================ */
+
+.profile-floating-label {
+  position: relative;
+  margin-bottom: 4px;
+}
+
+.profile-input-wrapper {
+  position: relative;
+}
+
+.profile-input {
+  width: 100%;
+  height: 56px;
+  padding: 16px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 15px;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  transition: all 0.2s ease;
+}
+
+.profile-input:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.profile-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.05);
+}
+
+/* Floating label text - sits in border when focused/filled */
+.profile-floating-label-text {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 15px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  background: transparent;
+  padding: 0 6px;
+}
+
+/* Label floats into border notch when focused or has value */
+.profile-floating-label.focused .profile-floating-label-text {
+  top: 0;
+  transform: translateY(-50%);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  /* Solid background to cover the border - more visible */
+  background: #000000;
+  left: 10px;
+}
+
+/* Hint text below inputs */
+.profile-input-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 8px 0 0 0;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Section label for non-input fields (interests, gender, etc) */
+.profile-section-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-section-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 4px;
 }
 
 /* Empty state */
@@ -285,16 +408,16 @@
 }
 
 .empty-state.complete {
-  color: rgba(34, 197, 94, 0.8);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .empty-state.complete svg {
   margin-bottom: 12px;
-  stroke: rgba(34, 197, 94, 0.8);
+  stroke: rgba(255, 255, 255, 0.5);
 }
 
 .empty-state.complete p {
-  color: rgba(34, 197, 94, 0.8);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 /* Error message */
@@ -313,32 +436,161 @@
   margin-bottom: 24px;
 }
 
-/* Save all button */
+/* Success message */
+.profile-success {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  margin-bottom: 24px;
+}
+
+.profile-success svg {
+  stroke: rgba(255, 255, 255, 0.6);
+}
+
+/* ============================================
+   STICKY SAVE BAR
+   ============================================ */
+.save-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(10, 10, 10, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 16px 24px;
+  z-index: 1000;
+  transform: translateY(100%);
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.save-bar.visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.save-bar-content {
+  max-width: 1000px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.save-bar-message {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.unsaved-indicator {
+  width: 8px;
+  height: 8px;
+  background: #f59e0b;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.save-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.discard-btn {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.discard-btn:hover:not(:disabled) {
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.discard-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.save-bar .save-btn {
+  font-size: 13px;
+  font-weight: 600;
+  color: #000;
+  background: #FFFFFF;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 24px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.save-bar .save-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.save-bar .save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Bottom return button */
 .profile-actions {
+  width: 100%;
+  max-width: 1000px;
   margin-top: 32px;
   display: flex;
   justify-content: center;
 }
 
-.save-all-btn {
+.return-btn {
   padding: 14px 32px;
-  background: #FFFFFF;
-  border: none;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 8px;
-  color: #000;
+  color: rgba(255, 255, 255, 0.8);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.save-all-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.9);
-  transform: translateY(-1px);
+.return-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #FFFFFF;
 }
 
-.save-all-btn:disabled {
+.return-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -612,7 +864,7 @@
    ============================================ */
 @media (max-width: 768px) {
   .profile-completion-page {
-    padding: 100px 16px 32px;
+    padding: 100px 16px 140px;
   }
 
   .profile-columns {
@@ -633,7 +885,7 @@
     font-size: 14px;
   }
 
-  .save-all-btn {
+  .return-btn {
     width: 100%;
   }
 
@@ -646,11 +898,57 @@
     padding: 8px 14px;
     font-size: 12px;
   }
+
+  /* Floating label mobile adjustments */
+  .profile-input {
+    height: 52px;
+    padding: 14px 14px;
+    font-size: 16px; /* Prevent iOS zoom on focus */
+    border-radius: 8px;
+  }
+
+  .profile-floating-label-text {
+    font-size: 14px;
+    left: 12px;
+  }
+
+  .profile-floating-label.focused .profile-floating-label-text {
+    font-size: 11px;
+    left: 8px;
+  }
+
+  .profile-section-label {
+    font-size: 12px;
+  }
+
+  /* Save bar mobile */
+  .save-bar {
+    padding: 12px 16px;
+  }
+
+  .save-bar-content {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .save-bar-message {
+    font-size: 13px;
+  }
+
+  .save-bar-actions {
+    width: 100%;
+  }
+
+  .discard-btn,
+  .save-bar .save-btn {
+    flex: 1;
+    padding: 12px 16px;
+  }
 }
 
 @media (max-width: 480px) {
   .profile-completion-page {
-    padding: 90px 12px 24px;
+    padding: 90px 12px 150px;
   }
 
   .profile-column {
@@ -672,13 +970,18 @@
     width: 100%;
     justify-content: center;
   }
+
+  .save-bar-message span {
+    font-size: 12px;
+  }
 }
 
 /* ============================================
    REDUCED MOTION
    ============================================ */
 @media (prefers-reduced-motion: reduce) {
-  .profile-loading .spinner {
+  .profile-loading .spinner,
+  .unsaved-indicator {
     animation: none;
   }
 
@@ -687,8 +990,12 @@
   .edit-btn,
   .save-btn,
   .cancel-btn,
-  .save-all-btn,
-  .profile-field {
+  .return-btn,
+  .discard-btn,
+  .save-bar,
+  .profile-field,
+  .profile-input,
+  .profile-floating-label-text {
     transition: none;
   }
 }

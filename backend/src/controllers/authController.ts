@@ -149,7 +149,11 @@ export const register = async (req: Request, res: Response) => {
         email: user.email,
         referralCode: user.referral_code,
         points: user.points,
-        isAdmin: user.is_admin
+        isAdmin: user.is_admin,
+        name: user.first_name,
+        emailVerified: user.email_verified,
+        profileCompleted: !!user.profile_completed_at,
+        profileSkipped: user.profile_completion_skipped || false
       }
     });
   } catch (error) {
@@ -247,7 +251,11 @@ export const login = async (req: Request, res: Response) => {
         email: user.email,
         referralCode: user.referral_code,
         points: user.points,
-        isAdmin: user.is_admin
+        isAdmin: user.is_admin,
+        name: user.first_name,
+        emailVerified: user.email_verified,
+        profileCompleted: !!user.profile_completed_at,
+        profileSkipped: user.profile_completion_skipped || false
       }
     });
   } catch (error) {
@@ -261,7 +269,7 @@ export const getProfile = async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
 
     const result = await pool.query<User>(
-      'SELECT id, email, referral_code, points, is_admin, created_at FROM users WHERE id = $1',
+      'SELECT id, email, referral_code, points, is_admin, created_at, first_name, email_verified, profile_completed_at, profile_completion_skipped FROM users WHERE id = $1',
       [userId]
     );
 
@@ -277,7 +285,11 @@ export const getProfile = async (req: Request, res: Response) => {
       referralCode: user.referral_code,
       points: user.points,
       isAdmin: user.is_admin,
-      createdAt: user.created_at
+      createdAt: user.created_at,
+      name: user.first_name,
+      emailVerified: user.email_verified,
+      profileCompleted: !!user.profile_completed_at,
+      profileSkipped: user.profile_completion_skipped || false
     });
   } catch (error) {
     console.error('Get profile error:', error);

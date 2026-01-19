@@ -14,12 +14,12 @@ const getMaxDate = () => {
   return today.toISOString().split('T')[0];
 };
 
-const DOBInput = ({ variant, dateValue, onDateChange, ageRangeValue, onAgeRangeChange }) => {
+const DOBInput = ({ variant, dateValue, onDateChange, ageRangeValue, onAgeRangeChange, hideLabel = false }) => {
   // A/B Test: Show either date picker or age range dropdown
   if (variant === 'date_picker') {
     return (
-      <div className="form-section">
-        <label className="form-section-label">Date of Birth</label>
+      <div className={hideLabel ? "dob-input-container" : "form-section"}>
+        {!hideLabel && <label className="form-section-label">Date of Birth</label>}
         <div className="dob-input-wrapper">
           <input
             type="date"
@@ -29,15 +29,15 @@ const DOBInput = ({ variant, dateValue, onDateChange, ageRangeValue, onAgeRangeC
             placeholder="MM/DD/YYYY"
           />
         </div>
-        <p className="form-section-hint">Must be 18 or older</p>
+        {!hideLabel && <p className="form-section-hint">Must be 18 or older</p>}
       </div>
     );
   }
 
   // Default: age_range variant
   return (
-    <div className="form-section">
-      <label className="form-section-label">Age Range</label>
+    <div className={hideLabel ? "dob-input-container" : "form-section"}>
+      {!hideLabel && <label className="form-section-label">Age Range</label>}
       <div className="dob-input-wrapper">
         <select
           value={ageRangeValue}
