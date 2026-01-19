@@ -7,6 +7,13 @@ import DOBInput from '../components/profile/DOBInput';
 import PhoneInput from '../components/profile/PhoneInput';
 import MarketingPreferences from '../components/profile/MarketingPreferences';
 import { profileAPI, experimentAPI, authAPI } from '../services/api';
+import {
+  trackProfileViewed,
+  trackProfileUpdated,
+  trackProfileCompleted,
+  trackPasswordResetRequested,
+  trackExperimentViewed,
+} from '../services/analytics';
 import './ProfileCompletion.css';
 
 const ProfileCompletion = () => {
@@ -106,6 +113,7 @@ const ProfileCompletion = () => {
       navigate('/confirm-email');
       return;
     }
+    trackProfileViewed();
     loadOptionsAndProfile();
   }, [user, emailVerified, navigate]);
 
@@ -121,6 +129,11 @@ const ProfileCompletion = () => {
       setAvailableInterests(interestsRes.data.interests);
       setAvailableChannels(channelsRes.data.channels);
       setDobVariant(variantRes.data.variant);
+
+      // Track A/B test variant assignment
+      if (variantRes.data.variant) {
+        trackExperimentViewed('dob_input_type', variantRes.data.variant);
+      }
 
       const profile = profileRes.data.profile;
       // Name comes from profile API (firstName) or user context (name)
@@ -174,6 +187,26 @@ const ProfileCompletion = () => {
 
       await profileAPI.updateProfile(profileData);
       await refreshUser();
+
+      // Track which fields were updated
+      const updatedFields = [];
+      if (name !== savedProfile.name) updatedFields.push('name');
+      if (phone !== savedProfile.phone) updatedFields.push('phone');
+      if (JSON.stringify(interests) !== JSON.stringify(savedProfile.interests)) updatedFields.push('interests');
+      if (gender !== savedProfile.gender) updatedFields.push('gender');
+      if (dateOfBirth !== savedProfile.dateOfBirth) updatedFields.push('dateOfBirth');
+      if (ageRange !== savedProfile.ageRange) updatedFields.push('ageRange');
+      if (JSON.stringify(marketingPrefs) !== JSON.stringify(savedProfile.marketingPrefs)) updatedFields.push('marketingPreferences');
+
+      if (updatedFields.length > 0) {
+        trackProfileUpdated(updatedFields);
+      }
+
+      // Check if profile is now complete (all main fields filled)
+      const isComplete = name && (interests.length > 0);
+      if (isComplete && (!savedProfile.name || savedProfile.interests.length === 0)) {
+        trackProfileCompleted(100);
+      }
 
       // Update saved profile state
       setSavedProfile({
@@ -249,6 +282,7 @@ const ProfileCompletion = () => {
 
     try {
       await authAPI.forgotPassword(user.email);
+      trackPasswordResetRequested(user.email);
       setPasswordResetSent(true);
       setResetCooldown(60);
       localStorage.setItem('lastPasswordReset', Date.now().toString());

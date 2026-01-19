@@ -2,6 +2,15 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import api, { episodesAPI } from '../services/api';
 import { getYouTubeThumbnail, setReferralSourceEpisode } from '../utils/episode';
+import {
+  trackReferralPageLoaded,
+  trackReferralPlatformClick,
+  trackReferralEpisodeViewed,
+  trackReferralRedirect,
+  trackReferralCTAClicked,
+  trackReferralError,
+  trackReferralEngagement,
+} from '../services/analytics';
 
 /**
  * Referral Landing Page - CRT Screen Experience
@@ -26,6 +35,8 @@ const ReferralLanding = () => {
   const [cardGlow, setCardGlow] = useState(0.5);
 
   const containerRef = useRef(null);
+  const pageLoadTime = useRef(Date.now());
+  const hasTrackedPageLoad = useRef(false);
 
   useEffect(() => {
     const handleResize = () => {
@@ -101,14 +112,50 @@ const ReferralLanding = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
+  // Track engagement when user leaves the page
+  useEffect(() => {
+    const trackEngagementOnLeave = () => {
+      const timeOnPageSeconds = Math.round((Date.now() - pageLoadTime.current) / 1000);
+      // Only track if they spent meaningful time (>2 seconds)
+      if (timeOnPageSeconds > 2) {
+        trackReferralEngagement(code, timeOnPageSeconds, 100, {
+          had_episode: !!episode,
+          was_redirecting: redirecting,
+        });
+      }
+    };
+
+    // Track on page visibility change (tab switch, minimize)
+    const handleVisibilityChange = () => {
+      if (document.hidden && !redirecting) {
+        trackEngagementOnLeave();
+      }
+    };
+
+    // Track on page unload (navigation away, close)
+    const handleBeforeUnload = () => {
+      if (!redirecting) {
+        trackEngagementOnLeave();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [code, episode, redirecting]);
+
   const trackClickAndLoadEpisode = async () => {
+    // Get episode ID from query params (e.g., ?e=123)
+    const episodeId = searchParams.get('e');
+
     try {
       console.log('Tracking referral click for code:', code);
       // Track the click
       await api.get(`/referral/${code}`);
-
-      // Get episode ID from query params (e.g., ?e=123)
-      const episodeId = searchParams.get('e');
 
       // Store episode ID in sessionStorage for deep link preservation
       // This allows the Dashboard to pre-select this episode after signup/login
@@ -119,9 +166,21 @@ const ReferralLanding = () => {
       // Fetch the specific episode or latest if not specified
       const response = await episodesAPI.getForReferral(code, episodeId);
       setEpisode(response.data);
+
+      // Track page load with rich context (only once)
+      if (!hasTrackedPageLoad.current) {
+        hasTrackedPageLoad.current = true;
+        trackReferralPageLoaded(code, episodeId || response.data?.youtube_video_id);
+      }
+
+      // Track that episode content was displayed
+      if (response.data) {
+        trackReferralEpisodeViewed(code, response.data.youtube_video_id, response.data.title);
+      }
     } catch (err) {
       console.error('Failed to track click or load episode:', err);
       setError('Failed to load content. Please try again.');
+      trackReferralError(code, 'load_failed', err.message);
     } finally {
       setLoading(false);
     }
@@ -130,6 +189,16 @@ const ReferralLanding = () => {
   const handlePlatformClick = async (platform) => {
     if (redirecting) return;
     setRedirecting(true);
+
+    // Calculate time on page before click
+    const timeOnPageSeconds = Math.round((Date.now() - pageLoadTime.current) / 1000);
+
+    // Track the platform click with context
+    trackReferralPlatformClick(code, platform, episode?.youtube_video_id, {
+      time_on_page_seconds: timeOnPageSeconds,
+      episode_title: episode?.title,
+    });
+
     try {
       // Pass episode ID so backend uses correct URLs for this episode
       console.log(`Platform click: platform=${platform}, episodeId=${episode?.id}, episode=`, episode);
@@ -161,6 +230,7 @@ const ReferralLanding = () => {
         const visibilityChange = () => {
           if (document.hidden) {
             didOpen = true;
+            trackReferralRedirect(code, platform, true, 'app');
           }
         };
         document.addEventListener('visibilitychange', visibilityChange);
@@ -169,15 +239,19 @@ const ReferralLanding = () => {
         setTimeout(() => {
           document.removeEventListener('visibilitychange', visibilityChange);
           if (!didOpen) {
+            trackReferralRedirect(code, platform, true, 'web_fallback');
             window.location.href = webUrl;
           }
         }, 2000);
       } else {
         // Desktop: Use web URL directly (YouTube/Spotify apps auto-open from browser)
+        trackReferralRedirect(code, platform, true, 'web');
         window.location.href = webUrl;
       }
     } catch (err) {
       console.error('Failed to process click:', err);
+      trackReferralRedirect(code, platform, false, 'error');
+      trackReferralError(code, 'redirect_failed', err.message);
       setError('Failed to redirect. Please try again.');
       setRedirecting(false);
     }
@@ -773,6 +847,7 @@ const ReferralLanding = () => {
             </p>
             <a
               href="/"
+              onClick={() => trackReferralCTAClicked(code, 'get_own_link')}
               style={{
                 display: 'inline-block',
                 color: '#FFFFFF',

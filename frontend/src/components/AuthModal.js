@@ -1,12 +1,27 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import {
+  trackSignupStarted,
+  trackSignupCompleted,
+  trackLoginStarted,
+  trackLoginCompleted,
+  trackLoginFailed,
+  trackPasswordResetRequested,
+  trackModalOpened,
+  trackModalClosed,
+  trackTabChanged,
+} from '../services/analytics';
 
 // SIMPLIFIED REGISTRATION: Email, password, name (required), and terms
 // Profile data (interests, demographics, marketing prefs) collected after email verification
 
 const AuthModal = ({ mode: initialMode, onClose }) => {
-  const [mode, setMode] = useState(initialMode); // 'login', 'register', 'forgot-password'
+  const [mode, setMode] = useState(() => {
+    // Track modal opened on mount
+    trackModalOpened(initialMode === 'register' ? 'signup' : initialMode);
+    return initialMode;
+  }); // 'login', 'register', 'forgot-password'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -133,16 +148,22 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
 
     try {
       if (mode === 'register') {
+        trackSignupStarted('email');
         // Profile data (interests, demographics, marketing) collected after email verification
-        await register(sanitizedEmail, sanitizedPassword, {
+        const result = await register(sanitizedEmail, sanitizedPassword, {
           firstName: firstName.trim(),  // Required
           termsAccepted  // LEGAL: Send explicit ToS acceptance to backend for audit trail
         });
+        trackSignupCompleted(result?.user?.id, sanitizedEmail);
+        trackModalClosed('signup', 'completed');
         onClose();
         // After registration, go to email confirmation page (blocking step)
         navigate('/confirm-email');
       } else {
-        await login(sanitizedEmail, sanitizedPassword);
+        trackLoginStarted();
+        const result = await login(sanitizedEmail, sanitizedPassword);
+        trackLoginCompleted(result?.user?.id, sanitizedEmail);
+        trackModalClosed('login', 'completed');
         onClose();
         navigate('/dashboard');
       }
@@ -150,12 +171,16 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
       // Display user-friendly error message from backend
       const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Authentication failed';
       setError(errorMessage);
+      if (mode === 'login') {
+        trackLoginFailed(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const switchMode = (newMode) => {
+    const previousMode = mode;
     setMode(newMode);
     setError('');
     setSuccessMessage('');
@@ -165,6 +190,11 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
     // Reset registration-only fields
     setFirstName('');
     setTermsAccepted(false);
+    // Track tab change
+    trackTabChanged(
+      newMode === 'register' ? 'signup' : newMode,
+      previousMode === 'register' ? 'signup' : previousMode
+    );
   };
 
   // Handle forgot password request
@@ -184,6 +214,7 @@ const AuthModal = ({ mode: initialMode, onClose }) => {
 
     try {
       await forgotPassword(sanitizedEmail);
+      trackPasswordResetRequested(sanitizedEmail);
       // Always show generic success message (security best practice)
       setSuccessMessage('If an account exists with this email, a password reset link has been sent. Please check your inbox.');
     } catch (err) {

@@ -12,6 +12,17 @@ import {
   truncateText,
   consumeReferralSourceEpisode
 } from '../utils/episode';
+import {
+  trackReferralLinkCopied,
+  trackPrizeViewed,
+  trackPrizeRedeemStarted,
+  trackPrizeRedeemed,
+  trackPrizeRedeemFailed,
+  trackProfileSkipped,
+  trackEmailVerificationResent,
+  trackEpisodeViewed,
+  identifyUser,
+} from '../services/analytics';
 
 const Dashboard = () => {
   const { user, emailVerified, resendVerificationEmail, updateUserPoints, refreshUser } = useAuth();
@@ -66,6 +77,7 @@ const Dashboard = () => {
 
     try {
       await resendVerificationEmail();
+      trackEmailVerificationResent(user?.email);
       setVerificationMessage('Verification email sent! Check your inbox.');
     } catch (error) {
       if (error.response?.status === 429) {
@@ -78,6 +90,27 @@ const Dashboard = () => {
       setResendingVerification(false);
     }
   };
+
+  // Identify user for analytics on mount (builds user profile in RudderStack)
+  useEffect(() => {
+    if (user?.id) {
+      identifyUser(user.id, {
+        // Core identity
+        email: user.email,
+        name: user.name,
+        first_name: user.firstName || user.name,
+        // Engagement metrics
+        points: user.points,
+        email_verified: emailVerified,
+        // Referral performance (when stats load)
+        referral_code: stats?.referralCode,
+        total_referrals: stats?.totalReferrals || 0,
+        successful_referrals: stats?.successfulReferrals || 0,
+        // Lifecycle
+        created_at: user.createdAt,
+      });
+    }
+  }, [user?.id, user?.email, user?.name, user?.firstName, user?.points, user?.createdAt, emailVerified, stats?.referralCode, stats?.totalReferrals, stats?.successfulReferrals]);
 
   // Check profile completion status on mount
   useEffect(() => {
@@ -102,6 +135,7 @@ const Dashboard = () => {
     setProfileBannerDismissing(true);
     try {
       await profileAPI.skipProfile();
+      trackProfileSkipped();
       setShowProfileBanner(false);
     } catch (error) {
       console.error('Failed to dismiss profile banner:', error);
@@ -166,11 +200,13 @@ const Dashboard = () => {
     const tier = confirmRedeemPrize;
     setClaimingTier(tier.id);
     setConfirmRedeemPrize(null);
+    trackPrizeRedeemStarted(tier.id, tier.name);
 
     try {
       const response = await prizeAPI.claim(tier.id);
       setClaimSuccess(response.data);
       setSelectedPrize({ ...tier, claimedCode: response.data.prize.code });
+      trackPrizeRedeemed(tier.id, tier.name, tier.prize_type);
 
       // Update points in auth context immediately (triggers split-flap animation)
       if (response.data.newPointsBalance !== undefined) {
@@ -182,6 +218,7 @@ const Dashboard = () => {
       await loadPrizeTiers();
     } catch (error) {
       console.error('Failed to redeem prize:', error);
+      trackPrizeRedeemFailed(tier.id, tier.name, error.response?.data?.error || 'Unknown error');
       alert(error.response?.data?.error || 'Failed to redeem prize');
     } finally {
       setClaimingTier(null);
@@ -355,6 +392,7 @@ const Dashboard = () => {
   const copyToClipboard = () => {
     navigator.clipboard.writeText(referralUrlWithEpisode);
     setCopied(true);
+    trackReferralLinkCopied(stats?.referralCode);
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -420,6 +458,7 @@ const Dashboard = () => {
     setSelectedVideoId(episode.youtube_video_id);
     setShowEpisodeSelector(false);
     setSearchQuery('');
+    trackEpisodeViewed(episode.youtube_video_id, episode.title);
     try {
       await userAPI.updateSelectedEpisode(episode.youtube_video_id);
     } catch (err) {

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { trackLogout } from '../services/analytics';
 import './Header.css';
 
 const Header = () => {
@@ -9,6 +10,7 @@ const Header = () => {
   const [settingsHovered, setSettingsHovered] = useState(false);
 
   const handleLogout = () => {
+    trackLogout();
     logout();
     navigate('/');
   };

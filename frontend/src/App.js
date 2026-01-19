@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Header from './components/Header';
 import CookieConsent from './components/CookieConsent';
 import LoadingSpinner from './components/LoadingSpinner';
+import { trackPage, trackSessionStarted } from './services/analytics';
 
 // Pages
 import Landing from './pages/Landing';
@@ -88,9 +89,34 @@ function CatchAllRedirect() {
   return <Navigate to={isAuthenticated ? "/dashboard" : "/"} replace />;
 }
 
+// Page tracking component
+function PageTracker() {
+  const location = useLocation();
+
+  useEffect(() => {
+    // Track page view on route change
+    const pageName = location.pathname === '/' ? 'Landing' :
+      location.pathname.replace(/^\//, '').replace(/\//g, ' ').replace(/-/g, ' ')
+        .split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+    trackPage(pageName, {
+      path: location.pathname,
+      search: location.search,
+      referrer: document.referrer,
+    });
+  }, [location.pathname, location.search]);
+
+  return null;
+}
+
 function AppContent() {
   const location = useLocation();
   const { isAuthenticated } = useAuth();
+
+  // Track session start on mount
+  useEffect(() => {
+    trackSessionStarted();
+  }, []);
 
   // Show header on dashboard and profile pages (when authenticated)
   const showHeader = isAuthenticated && (location.pathname === '/dashboard' || location.pathname === '/profile/complete');
@@ -167,6 +193,7 @@ function App() {
   return (
     <Router>
       <AuthProvider>
+        <PageTracker />
         <AppContent />
         <CookieConsent />
       </AuthProvider>
