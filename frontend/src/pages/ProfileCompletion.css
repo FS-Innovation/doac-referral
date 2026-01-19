@@ -47,6 +47,14 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 24px;
+  transition: all 0.3s ease;
+}
+
+/* Single column - when all fields are filled */
+.profile-columns.single-column {
+  grid-template-columns: 1fr;
+  max-width: 500px;
+  margin: 0 auto;
 }
 
 /* Column styling */
@@ -56,6 +64,12 @@
   border-radius: 16px;
   padding: 24px;
   min-height: 400px;
+  transition: all 0.3s ease;
+}
+
+/* Centered column when single */
+.profile-column.centered {
+  min-height: auto;
 }
 
 .filled-column {
@@ -870,6 +884,10 @@
   .profile-columns {
     grid-template-columns: 1fr;
     gap: 20px;
+  }
+
+  .profile-columns.single-column {
+    max-width: 100%;
   }
 
   .profile-column {

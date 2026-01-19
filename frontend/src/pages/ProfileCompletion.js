@@ -436,9 +436,9 @@ const ProfileCompletion = () => {
           </div>
         )}
 
-        <div className="profile-columns">
+        <div className={`profile-columns ${emptyFields.length === 0 ? 'single-column' : ''}`}>
           {/* Left Column - Your Profile (account info + SAVED data) */}
-          <div className="profile-column filled-column">
+          <div className={`profile-column filled-column ${emptyFields.length === 0 ? 'centered' : ''}`}>
             <div className="column-header">
               <h2>Your Profile</h2>
               <span className="column-badge">Account</span>
@@ -539,14 +539,14 @@ const ProfileCompletion = () => {
             </div>
           </div>
 
-          {/* Right Column - Add Information (empty fields) */}
-          <div className="profile-column empty-column">
-            <div className="column-header">
-              <h2>Add Information</h2>
-              <span className="column-badge optional">Optional</span>
-            </div>
+          {/* Right Column - Add Information (empty fields) - Only show when there are empty fields */}
+          {emptyFields.length > 0 && (
+            <div className="profile-column empty-column">
+              <div className="column-header">
+                <h2>Add Information</h2>
+                <span className="column-badge optional">Optional</span>
+              </div>
 
-            {emptyFields.length > 0 ? (
               <div className="fields-list">
                 {emptyFields.map(field => (
                   <div key={field.key} className="profile-field empty-field">
@@ -582,16 +582,8 @@ const ProfileCompletion = () => {
                   </div>
                 ))}
               </div>
-            ) : (
-              <div className="empty-state complete">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                  <polyline points="22 4 12 14.01 9 11.01"/>
-                </svg>
-                <p>Profile complete!</p>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
