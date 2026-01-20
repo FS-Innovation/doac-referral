@@ -53,7 +53,6 @@ const Dashboard = () => {
   const [selectedPrize, setSelectedPrize] = useState(null);
   const [confirmRedeemPrize, setConfirmRedeemPrize] = useState(null); // Prize pending confirmation
   const [userPoints, setUserPoints] = useState(user?.points || 0);
-  const [testPoints, setTestPoints] = useState(null); // For testing animation
 
   // Email verification state
   const [resendingVerification, setResendingVerification] = useState(false);
@@ -865,38 +864,10 @@ const Dashboard = () => {
         marginBottom: isMobile ? '4rem' : '6rem'
       }}>
         <SplitFlapCounter
-          value={testPoints !== null ? testPoints : user.points}
+          value={user.points}
           fontSize={isMobile ? '3rem' : '5rem'}
           isMobile={isMobile}
         />
-        {/* Test button for animation testing */}
-        <button
-          onClick={() => setTestPoints(prev => (prev !== null ? prev : user.points) + 1)}
-          style={{
-            marginTop: '1.5rem',
-            padding: '8px 16px',
-            background: 'transparent',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            borderRadius: '6px',
-            color: 'rgba(255, 255, 255, 0.5)',
-            fontSize: '0.75rem',
-            fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.target.style.borderColor = 'rgba(255, 255, 255, 0.4)';
-            e.target.style.color = 'rgba(255, 255, 255, 0.8)';
-          }}
-          onMouseLeave={(e) => {
-            e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-            e.target.style.color = 'rgba(255, 255, 255, 0.5)';
-          }}
-        >
-          + Add Point (Test)
-        </button>
       </div>
 
       <div style={{
