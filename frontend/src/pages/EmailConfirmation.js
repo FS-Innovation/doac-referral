@@ -16,10 +16,10 @@ const EmailConfirmation = () => {
   const [message, setMessage] = useState('');
   const [checking, setChecking] = useState(false);
 
-  // If already verified, redirect to onboarding
+  // If already verified, redirect to dashboard (onboarding modal will show if needed)
   useEffect(() => {
     if (emailVerified) {
-      navigate('/onboarding');
+      navigate('/dashboard');
     }
   }, [emailVerified, navigate]);
 

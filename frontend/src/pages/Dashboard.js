@@ -5,6 +5,7 @@ import { userAPI, episodesAPI, prizeAPI, profileAPI } from '../services/api';
 import SplitFlapCounter from '../components/SplitFlapCounter';
 import CopyLinkBar from '../components/CopyLinkBar';
 import PrizeRail from '../components/PrizeRail';
+import OnboardingModal from '../components/OnboardingModal';
 import {
   buildReferralUrl,
   getYouTubeThumbnail,
@@ -18,11 +19,9 @@ import {
   trackPrizeRedeemStarted,
   trackPrizeRedeemed,
   trackPrizeRedeemFailed,
-  trackProfileSkipped,
   trackEmailVerificationResent,
   trackEpisodeViewed,
   trackEpisodeAutoSet,
-  trackEpisodeSelectionChanged,
   identifyUser,
 } from '../services/analytics';
 
@@ -61,7 +60,9 @@ const Dashboard = () => {
 
   // Profile completion banner state
   const [showProfileBanner, setShowProfileBanner] = useState(false);
-  const [profileBannerDismissing, setProfileBannerDismissing] = useState(false);
+
+  // Onboarding modal state (shown for new users who haven't completed/skipped)
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const navigate = useNavigate();
 
   // 3D Tilt effect state for confirmation card
@@ -118,10 +119,26 @@ const Dashboard = () => {
     const checkProfileStatus = async () => {
       try {
         const response = await profileAPI.getCompletionStatus();
-        const { profileCompleted, profileSkipped } = response.data;
-        // Show banner if profile not completed and not skipped
+        const { profileCompleted, profileSkipped, completedFields } = response.data;
+
+        // Show onboarding modal ONLY if profile not completed AND not skipped (first time users)
         if (!profileCompleted && !profileSkipped) {
-          setShowProfileBanner(true);
+          setShowOnboardingModal(true);
+        }
+
+        // Show profile banner if ANY fields are incomplete (regardless of skip status)
+        // This encourages users to complete their profile even after skipping
+        if (completedFields) {
+          const hasIncompleteFields = !completedFields.firstName ||
+            !completedFields.phone ||
+            !completedFields.interests ||
+            !completedFields.gender ||
+            !completedFields.dob ||
+            !completedFields.marketingPrefs;
+
+          if (hasIncompleteFields) {
+            setShowProfileBanner(true);
+          }
         }
       } catch (error) {
         // Silent fail - don't block dashboard for profile check
@@ -131,18 +148,9 @@ const Dashboard = () => {
     checkProfileStatus();
   }, []);
 
-  // Handle profile banner dismiss (skip profile completion)
-  const handleDismissProfileBanner = async () => {
-    setProfileBannerDismissing(true);
-    try {
-      await profileAPI.skipProfile();
-      trackProfileSkipped();
-      setShowProfileBanner(false);
-    } catch (error) {
-      console.error('Failed to dismiss profile banner:', error);
-    } finally {
-      setProfileBannerDismissing(false);
-    }
+  // Handle profile banner dismiss - just hide it for this session
+  const handleDismissProfileBanner = () => {
+    setShowProfileBanner(false);
   };
 
   useEffect(() => {
@@ -557,6 +565,11 @@ const Dashboard = () => {
 
   return (
     <>
+    {/* Onboarding Modal - shown for new users who haven't completed profile */}
+    {showOnboardingModal && (
+      <OnboardingModal onComplete={() => setShowOnboardingModal(false)} />
+    )}
+
     {/* Email Verification Notice - Small non-intrusive popup */}
     {!emailVerified && !verificationBannerDismissed && (
       <div style={{
@@ -717,25 +730,26 @@ const Dashboard = () => {
         {/* Close button */}
         <button
           onClick={handleDismissProfileBanner}
-          disabled={profileBannerDismissing}
           style={{
             position: 'absolute',
-            top: '12px',
-            right: '12px',
+            top: '10px',
+            right: '10px',
             background: 'rgba(255, 255, 255, 0.05)',
             border: '1px solid rgba(255, 255, 255, 0.1)',
             borderRadius: '50%',
-            width: '28px',
-            height: '28px',
+            width: '36px',
+            height: '36px',
+            minWidth: '36px',
+            minHeight: '36px',
             color: 'rgba(255, 255, 255, 0.5)',
-            cursor: profileBannerDismissing ? 'wait' : 'pointer',
+            cursor: 'pointer',
             padding: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            opacity: profileBannerDismissing ? 0.5 : 1,
             transition: 'all 0.2s ease',
-            zIndex: 2,
+            zIndex: 10,
+            isolation: 'isolate',
           }}
           title="Dismiss"
           onMouseEnter={(e) => {
@@ -747,7 +761,7 @@ const Dashboard = () => {
             e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)';
           }}
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <line x1="18" y1="6" x2="6" y2="18"/>
             <line x1="6" y1="6" x2="18" y2="18"/>
           </svg>

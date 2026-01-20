@@ -97,9 +97,9 @@ const VerifyEmail = () => {
         setCountdown((prev) => {
           if (prev <= 1) {
             clearInterval(timer);
-            // New verification: redirect to onboarding
-            // Already verified: go to dashboard (they've already had a chance to complete profile)
-            navigate(status === 'success' ? '/onboarding' : '/dashboard');
+            // Both new and already verified users go to dashboard
+            // Onboarding modal will appear on dashboard if needed
+            navigate('/dashboard');
             return 0;
           }
           return prev - 1;
@@ -133,10 +133,10 @@ const VerifyEmail = () => {
             <h2 style={{ color: '#fff', marginBottom: '12px' }}>Email Verified!</h2>
             <p style={{ color: '#999', marginBottom: '24px' }}>{message}</p>
             <p style={{ color: '#999', fontSize: '14px' }}>
-              Setting up your account in {countdown} seconds...
+              Redirecting to dashboard in {countdown} seconds...
             </p>
             <button
-              onClick={() => navigate('/onboarding')}
+              onClick={() => navigate('/dashboard')}
               style={{
                 marginTop: '20px',
                 padding: '12px 32px',
@@ -152,7 +152,7 @@ const VerifyEmail = () => {
                 cursor: 'pointer'
               }}
             >
-              Get Started
+              Go to Dashboard
             </button>
           </div>
         );
