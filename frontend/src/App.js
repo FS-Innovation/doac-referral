@@ -1,10 +1,11 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Header from './components/Header';
 import CookieConsent from './components/CookieConsent';
 import LoadingSpinner from './components/LoadingSpinner';
 import { trackPage, trackSessionStarted } from './services/analytics';
+import { profileAPI } from './services/api';
 
 // Pages
 import Landing from './pages/Landing';
@@ -18,6 +19,7 @@ import TermsConditions from './pages/TermsConditions';
 import VerifyEmail from './pages/VerifyEmail';
 import EmailConfirmation from './pages/EmailConfirmation';
 import ProfileCompletion from './pages/ProfileCompletion';
+import Onboarding from './pages/Onboarding';
 
 // Authenticated route wrapper - redirects to dashboard if logged in
 function AuthenticatedRoute({ children }) {
@@ -70,9 +72,61 @@ function UnverifiedRoute({ children }) {
     return <Navigate to="/" replace />;
   }
 
-  // If already verified, go to dashboard
+  // If already verified, go to onboarding (which will check if they need it)
   if (emailVerified) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  return children;
+}
+
+// Onboarding gate - redirects to onboarding if user hasn't completed/skipped it
+function OnboardingGate({ children }) {
+  const { isAuthenticated, loading, emailVerified } = useAuth();
+  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+
+  useEffect(() => {
+    const checkOnboarding = async () => {
+      if (!isAuthenticated || !emailVerified) {
+        setCheckingOnboarding(false);
+        return;
+      }
+      try {
+        const response = await profileAPI.getCompletionStatus();
+        const { profileCompleted, profileSkipped } = response.data;
+        // User needs onboarding if they haven't completed or skipped
+        setNeedsOnboarding(!profileCompleted && !profileSkipped);
+      } catch (error) {
+        // On error, allow through (don't block dashboard)
+        console.error('Error checking onboarding status:', error);
+        setNeedsOnboarding(false);
+      }
+      setCheckingOnboarding(false);
+    };
+
+    if (!loading) {
+      checkOnboarding();
+    }
+  }, [isAuthenticated, emailVerified, loading]);
+
+  if (loading || checkingOnboarding) {
+    return <LoadingSpinner />;
+  }
+
+  // If not authenticated, go to landing page
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+
+  // If authenticated but email not verified, go to email confirmation
+  if (!emailVerified) {
+    return <Navigate to="/confirm-email" replace />;
+  }
+
+  // If user needs onboarding, redirect to onboarding page
+  if (needsOnboarding) {
+    return <Navigate to="/onboarding" replace />;
   }
 
   return children;
@@ -118,8 +172,8 @@ function AppContent() {
     trackSessionStarted();
   }, []);
 
-  // Show header on dashboard and profile pages (when authenticated)
-  const showHeader = isAuthenticated && (location.pathname === '/dashboard' || location.pathname === '/profile/complete');
+  // Show header on dashboard, profile, and onboarding pages (when authenticated)
+  const showHeader = isAuthenticated && (location.pathname === '/dashboard' || location.pathname === '/profile/complete' || location.pathname === '/onboarding');
 
   return (
     <div className="App">
@@ -162,6 +216,16 @@ function AppContent() {
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms-conditions" element={<TermsConditions />} />
 
+        {/* Onboarding - step 2 after email verification */}
+        <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute>
+              <Onboarding />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Profile completion - only for authenticated users */}
         <Route
           path="/profile/complete"
@@ -172,13 +236,13 @@ function AppContent() {
           }
         />
 
-        {/* Dashboard - only for authenticated users */}
+        {/* Dashboard - only for authenticated users who completed onboarding */}
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute>
+            <OnboardingGate>
               <Dashboard />
-            </ProtectedRoute>
+            </OnboardingGate>
           }
         />
 

@@ -1,0 +1,482 @@
+/* ============================================
+   ONBOARDING PAGE - Single Column Form
+   ============================================ */
+
+/* Base page */
+.onboarding-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 60px 24px 80px;
+  background: #000000;
+  position: relative;
+}
+
+/* Main container */
+.onboarding-container {
+  width: 100%;
+  max-width: 480px;
+  position: relative;
+}
+
+/* Header section */
+.onboarding-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.onboarding-header h1 {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 28px;
+  font-weight: 500;
+  color: #FFFFFF;
+  margin: 0 0 12px 0;
+  letter-spacing: -0.02em;
+}
+
+.onboarding-header .subtitle {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0;
+  font-weight: 400;
+}
+
+/* Error message */
+.onboarding-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  color: #fca5a5;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  margin-bottom: 24px;
+}
+
+/* Form container */
+.onboarding-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+/* Individual field wrapper */
+.onboarding-field {
+  width: 100%;
+}
+
+/* ============================================
+   FLOATING LABELS
+   ============================================ */
+
+.onboarding-floating-label {
+  position: relative;
+  margin-bottom: 4px;
+}
+
+.onboarding-input-wrapper {
+  position: relative;
+}
+
+.onboarding-input {
+  width: 100%;
+  height: 56px;
+  padding: 16px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 15px;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  transition: all 0.2s ease;
+}
+
+.onboarding-input:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.onboarding-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.05);
+}
+
+.onboarding-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Floating label text */
+.onboarding-floating-label-text {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 15px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  background: transparent;
+  padding: 0 6px;
+}
+
+/* Label floats into border when focused or has value */
+.onboarding-floating-label.focused .onboarding-floating-label-text {
+  top: 0;
+  transform: translateY(-50%);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  background: #000000;
+  left: 10px;
+}
+
+/* Hint text below inputs */
+.onboarding-input-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 8px 0 0 0;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ============================================
+   SECTION FIELDS (Interests, Gender, etc)
+   ============================================ */
+
+.onboarding-section-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.onboarding-section-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 4px;
+}
+
+/* ============================================
+   ACTIONS
+   ============================================ */
+
+.onboarding-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Continue button */
+.onboarding-continue-btn {
+  width: 100%;
+  padding: 16px 32px;
+  background: #FFFFFF;
+  border: none;
+  border-radius: 10px;
+  color: #000000;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.onboarding-continue-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.9);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.15);
+}
+
+.onboarding-continue-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.onboarding-continue-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Skip link - subtle */
+.onboarding-skip-link {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 13px;
+  font-weight: 400;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  cursor: pointer;
+  padding: 8px 16px;
+  transition: color 0.2s ease;
+}
+
+.onboarding-skip-link:hover:not(:disabled) {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.onboarding-skip-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================
+   LOADING STATE
+   ============================================ */
+
+.onboarding-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 16px;
+}
+
+.onboarding-loading .spinner {
+  width: 40px;
+  height: 40px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-top-color: rgba(255, 255, 255, 0.6);
+  border-radius: 50%;
+  animation: onboarding-spin 1s linear infinite;
+}
+
+@keyframes onboarding-spin {
+  to { transform: rotate(360deg); }
+}
+
+.onboarding-loading p {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 14px;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ============================================
+   COMPONENT OVERRIDES
+   Ensure reused components match onboarding style
+   ============================================ */
+
+/* Interest chips */
+.onboarding-field .interest-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.onboarding-field .interest-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.onboarding-field .interest-chip:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.onboarding-field .interest-chip.selected {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #FFFFFF;
+}
+
+/* Gender options */
+.onboarding-field .gender-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.onboarding-field .gender-option {
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.onboarding-field .gender-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.onboarding-field .gender-option.selected {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #FFFFFF;
+}
+
+/* DOB/Phone inputs */
+.onboarding-field .dob-input-wrapper input,
+.onboarding-field .dob-input-wrapper select,
+.onboarding-field .phone-input-wrapper input {
+  width: 100%;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 14px;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  transition: all 0.2s ease;
+}
+
+.onboarding-field .dob-input-wrapper input:focus,
+.onboarding-field .dob-input-wrapper select:focus,
+.onboarding-field .phone-input-wrapper input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.onboarding-field .dob-input-wrapper select {
+  cursor: pointer;
+  appearance: none;
+  padding-right: 40px;
+}
+
+.onboarding-field .dob-input-wrapper select option {
+  background: #0a0a0a;
+  color: #ffffff;
+}
+
+/* Marketing preferences */
+.onboarding-field .marketing-channels {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.onboarding-field .marketing-channel {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.onboarding-field .marketing-channel:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* ============================================
+   MOBILE RESPONSIVE
+   ============================================ */
+
+@media (max-width: 768px) {
+  .onboarding-page {
+    padding: 40px 16px 60px;
+  }
+
+  .onboarding-header h1 {
+    font-size: 24px;
+  }
+
+  .onboarding-header .subtitle {
+    font-size: 14px;
+  }
+
+  .onboarding-input {
+    height: 52px;
+    padding: 14px 14px;
+    font-size: 16px; /* Prevent iOS zoom */
+    border-radius: 8px;
+  }
+
+  .onboarding-floating-label-text {
+    font-size: 14px;
+    left: 12px;
+  }
+
+  .onboarding-floating-label.focused .onboarding-floating-label-text {
+    font-size: 11px;
+    left: 8px;
+  }
+
+  .onboarding-section-label {
+    font-size: 12px;
+  }
+
+  .onboarding-continue-btn {
+    padding: 14px 24px;
+    font-size: 14px;
+  }
+
+  .onboarding-field .interest-chip {
+    padding: 7px 10px;
+    font-size: 11px;
+  }
+
+  .onboarding-field .gender-option {
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .onboarding-page {
+    padding: 32px 12px 48px;
+  }
+
+  .onboarding-header {
+    margin-bottom: 32px;
+  }
+
+  .onboarding-form {
+    gap: 20px;
+  }
+}
+
+/* ============================================
+   REDUCED MOTION
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-loading .spinner {
+    animation: none;
+  }
+
+  .onboarding-input,
+  .onboarding-floating-label-text,
+  .onboarding-continue-btn,
+  .onboarding-skip-link,
+  .onboarding-field .interest-chip,
+  .onboarding-field .gender-option,
+  .onboarding-field .marketing-channel {
+    transition: none;
+  }
+}

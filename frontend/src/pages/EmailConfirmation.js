@@ -16,10 +16,10 @@ const EmailConfirmation = () => {
   const [message, setMessage] = useState('');
   const [checking, setChecking] = useState(false);
 
-  // If already verified, redirect to profile completion (or dashboard if profile done)
+  // If already verified, redirect to onboarding
   useEffect(() => {
     if (emailVerified) {
-      navigate('/profile/complete');
+      navigate('/onboarding');
     }
   }, [emailVerified, navigate]);
 

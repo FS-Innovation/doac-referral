@@ -1011,14 +1011,14 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
         <div
           style={{
             fontSize: isMobile ? '0.6875rem' : '0.75rem',
-            fontWeight: '500',
+            fontWeight: '600',
             fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
             letterSpacing: '0.2em',
             textTransform: 'uppercase',
-            color: 'rgba(255, 255, 255, 0.4)',
+            color: 'rgba(255, 255, 255, 0.7)',
             marginBottom: isMobile ? '1rem' : '1.5rem',
             position: 'relative',
-            textShadow: isActive ? '0 0 8px rgba(255, 255, 255, 0.3)' : 'none',
+            textShadow: isActive ? '0 0 10px rgba(255, 255, 255, 0.4)' : '0 0 6px rgba(255, 255, 255, 0.15)',
             transition: 'text-shadow 0.3s ease',
           }}
         >
@@ -1219,11 +1219,12 @@ const SplitFlapCounter = ({ value, fontSize = '5rem', isMobile = false }) => {
           style={{
             marginTop: isMobile ? '1.25rem' : '1.75rem',
             fontSize: isMobile ? '0.625rem' : '0.75rem',
-            fontWeight: '500',
+            fontWeight: '600',
             fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
             letterSpacing: '0.15em',
-            color: 'rgba(255, 255, 255, 0.45)',
+            color: 'rgba(255, 255, 255, 0.7)',
             textTransform: 'uppercase',
+            textShadow: '0 0 6px rgba(255, 255, 255, 0.15)',
           }}
         >
           Redeem for exclusive rewards

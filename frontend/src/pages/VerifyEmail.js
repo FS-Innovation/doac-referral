@@ -12,7 +12,7 @@ import './CookiePolicy.css';
 const VerifyEmail = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { isAuthenticated, emailVerified, checkVerificationStatus } = useAuth();
+  const { isAuthenticated, emailVerified, checkVerificationStatus, refreshUser } = useAuth();
   const [status, setStatus] = useState('verifying'); // verifying, success, error, already-verified
   const [message, setMessage] = useState('');
   const [countdown, setCountdown] = useState(5);
@@ -34,6 +34,15 @@ const VerifyEmail = () => {
       try {
         const response = await authAPI.verifyEmail(token);
 
+        // Backend now auto-logs in the user by setting auth cookie
+        // Refresh the auth context to pick up the new session
+        try {
+          await refreshUser();
+        } catch (e) {
+          // If refreshUser fails, the user will still see success and can manually log in
+          console.warn('Could not refresh user after verification:', e);
+        }
+
         if (response.data.alreadyVerified) {
           setStatus('already-verified');
           setMessage('Your email is already verified.');
@@ -42,10 +51,6 @@ const VerifyEmail = () => {
           setStatus('success');
           setMessage(response.data.message || 'Email verified successfully!');
           trackEmailVerified('new_verification');
-          // Refresh the auth context's verification status
-          if (isAuthenticated) {
-            checkVerificationStatus();
-          }
         }
       } catch (error) {
         // If verification fails but user is logged in and already verified,
@@ -81,10 +86,10 @@ const VerifyEmail = () => {
     };
 
     verifyEmail();
-  }, [searchParams, isAuthenticated, emailVerified, checkVerificationStatus]);
+  }, [searchParams, isAuthenticated, emailVerified, checkVerificationStatus, refreshUser]);
 
   // Countdown and redirect after success
-  // For new verifications, redirect to profile completion page
+  // For new verifications, redirect to onboarding page
   // For already-verified, go to dashboard
   useEffect(() => {
     if (status === 'success' || status === 'already-verified') {
@@ -92,9 +97,9 @@ const VerifyEmail = () => {
         setCountdown((prev) => {
           if (prev <= 1) {
             clearInterval(timer);
-            // New verification: redirect to profile completion
+            // New verification: redirect to onboarding
             // Already verified: go to dashboard (they've already had a chance to complete profile)
-            navigate(status === 'success' ? '/profile/complete' : '/dashboard');
+            navigate(status === 'success' ? '/onboarding' : '/dashboard');
             return 0;
           }
           return prev - 1;
@@ -128,10 +133,10 @@ const VerifyEmail = () => {
             <h2 style={{ color: '#fff', marginBottom: '12px' }}>Email Verified!</h2>
             <p style={{ color: '#999', marginBottom: '24px' }}>{message}</p>
             <p style={{ color: '#999', fontSize: '14px' }}>
-              Taking you to complete your profile in {countdown} seconds...
+              Setting up your account in {countdown} seconds...
             </p>
             <button
-              onClick={() => navigate('/profile/complete')}
+              onClick={() => navigate('/onboarding')}
               style={{
                 marginTop: '20px',
                 padding: '12px 32px',
@@ -147,7 +152,7 @@ const VerifyEmail = () => {
                 cursor: 'pointer'
               }}
             >
-              Complete Profile
+              Get Started
             </button>
           </div>
         );

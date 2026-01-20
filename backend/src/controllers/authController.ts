@@ -524,7 +524,7 @@ export const resetPassword = async (req: Request, res: Response) => {
   }
 };
 
-// Verify email address
+// Verify email address - also auto-logs in the user for seamless UX
 export const verifyEmail = async (req: Request, res: Response) => {
   const { token } = req.body;
 
@@ -533,9 +533,10 @@ export const verifyEmail = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Verification token is required' });
     }
 
-    // Find user with this verification token
+    // Find user with this verification token - fetch all data needed for login
     const result = await pool.query<User>(
-      `SELECT id, email, first_name, email_verified, verification_token_expires
+      `SELECT id, email, first_name, email_verified, verification_token_expires,
+              referral_code, points, is_admin, profile_completed_at, profile_completion_skipped
        FROM users
        WHERE verification_token = $1
        LIMIT 1`,
@@ -550,7 +551,38 @@ export const verifyEmail = async (req: Request, res: Response) => {
 
     // Check if already verified
     if (user.email_verified) {
-      return res.json({ message: 'Email already verified', alreadyVerified: true });
+      // Still auto-login even if already verified (user might be in different browser)
+      const jwtToken = jwt.sign(
+        { id: user.id, email: user.email },
+        process.env.JWT_SECRET!,
+        { expiresIn: '7d' }
+      );
+
+      // Set HttpOnly cookie
+      res.cookie('auth_token', jwtToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        path: '/',
+        domain: process.env.NODE_ENV === 'production' ? '.doac-perks.com' : undefined
+      });
+
+      return res.json({
+        message: 'Email already verified',
+        alreadyVerified: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          referralCode: user.referral_code,
+          points: user.points,
+          isAdmin: user.is_admin,
+          name: user.first_name,
+          emailVerified: true,
+          profileCompleted: !!user.profile_completed_at,
+          profileSkipped: user.profile_completion_skipped || false
+        }
+      });
     }
 
     // Check if token expired
@@ -571,9 +603,48 @@ export const verifyEmail = async (req: Request, res: Response) => {
 
     console.log(`✅ Email verified for user ${user.email}`);
 
+    // Generate JWT token for auto-login
+    const jwtToken = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET!,
+      { expiresIn: '7d' }
+    );
+
+    // Set HttpOnly cookie (same as login)
+    res.cookie('auth_token', jwtToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' ? '.doac-perks.com' : undefined
+    });
+
+    // Store user's fingerprints in Redis for self-click detection
+    const userIp = req.ip || req.socket.remoteAddress || 'unknown';
+    const deviceId = req.get('x-device-id') || '';
+    const deviceFingerprint = req.get('x-device-fingerprint') || '';
+    const browserFingerprint = req.get('x-browser-fingerprint') || '';
+
+    await redisClient.setex(`user:${user.id}:ip`, 86400, userIp);
+    if (deviceId) await redisClient.setex(`user:${user.id}:deviceid`, 86400, deviceId);
+    if (deviceFingerprint) await redisClient.setex(`user:${user.id}:devicefp`, 86400, deviceFingerprint);
+    if (browserFingerprint) await redisClient.setex(`user:${user.id}:browserfp`, 86400, browserFingerprint);
+
     res.json({
-      message: 'Email verified successfully! You can now redeem prizes.',
-      email: user.email
+      message: 'Email verified successfully!',
+      email: user.email,
+      user: {
+        id: user.id,
+        email: user.email,
+        referralCode: user.referral_code,
+        points: user.points,
+        isAdmin: user.is_admin,
+        name: user.first_name,
+        emailVerified: true,
+        profileCompleted: !!user.profile_completed_at,
+        profileSkipped: user.profile_completion_skipped || false
+      }
     });
   } catch (error) {
     console.error('Email verification error:', error);

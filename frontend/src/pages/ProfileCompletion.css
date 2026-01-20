@@ -24,6 +24,41 @@
 .profile-header {
   text-align: center;
   margin-bottom: 40px;
+  position: relative;
+}
+
+/* Close button */
+.profile-close-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.profile-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.9);
+  transform: scale(1.05);
+}
+
+.profile-close-btn:active {
+  transform: scale(0.95);
+}
+
+.profile-close-btn svg {
+  width: 20px;
+  height: 20px;
 }
 
 .profile-header h1 {
@@ -897,6 +932,18 @@
 
   .profile-header h1 {
     font-size: 24px;
+  }
+
+  .profile-close-btn {
+    width: 36px;
+    height: 36px;
+    top: -4px;
+    right: -4px;
+  }
+
+  .profile-close-btn svg {
+    width: 18px;
+    height: 18px;
   }
 
   .column-header h2 {

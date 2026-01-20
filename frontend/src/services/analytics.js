@@ -187,6 +187,25 @@ export const trackMarketingPreferencesUpdated = (channels) => {
 };
 
 // ============================================
+// ONBOARDING EVENTS
+// ============================================
+
+export const trackOnboardingViewed = () => {
+  trackEvent('Onboarding Viewed');
+};
+
+export const trackOnboardingCompleted = (fieldsCompleted = []) => {
+  trackEvent('Onboarding Completed', {
+    fields_completed: fieldsCompleted,
+    field_count: fieldsCompleted.length,
+  });
+};
+
+export const trackOnboardingSkipped = () => {
+  trackEvent('Onboarding Skipped');
+};
+
+// ============================================
 // EPISODE SELECTION EVENTS
 // ============================================
 
@@ -620,6 +639,10 @@ export default {
   trackProfileSkipped,
   trackInterestsSelected,
   trackMarketingPreferencesUpdated,
+  // Onboarding
+  trackOnboardingViewed,
+  trackOnboardingCompleted,
+  trackOnboardingSkipped,
   // Episode Selection
   trackEpisodeSelectionChanged,
   trackEpisodeSelectorOpened,
