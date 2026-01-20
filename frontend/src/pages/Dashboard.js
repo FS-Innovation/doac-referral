@@ -21,6 +21,8 @@ import {
   trackProfileSkipped,
   trackEmailVerificationResent,
   trackEpisodeViewed,
+  trackEpisodeAutoSet,
+  trackEpisodeSelectionChanged,
   identifyUser,
 } from '../services/analytics';
 
@@ -346,7 +348,10 @@ const Dashboard = () => {
         // Only update if different from current selection
         if (urlEpisode.youtube_video_id !== selectedVideoId) {
           setSelectedVideoId(urlEpisode.youtube_video_id);
-          userAPI.updateSelectedEpisode(urlEpisode.youtube_video_id)
+          // Track the auto-set from URL parameter
+          trackEpisodeAutoSet(urlEpisode.youtube_video_id, urlEpisode.title, 'url_param');
+          // Save to backend with source context
+          userAPI.updateSelectedEpisode(urlEpisode.youtube_video_id, 'url_param')
             .then(() => console.log(`✅ Episode set from URL param: ${urlEpisode.youtube_video_id}`))
             .catch(err => console.error('Failed to save episode preference:', err));
         }
@@ -392,7 +397,7 @@ const Dashboard = () => {
   const copyToClipboard = () => {
     navigator.clipboard.writeText(referralUrlWithEpisode);
     setCopied(true);
-    trackReferralLinkCopied(stats?.referralCode);
+    trackReferralLinkCopied(stats?.referralCode, selectedVideoId);
     setTimeout(() => setCopied(false), 2000);
   };
 

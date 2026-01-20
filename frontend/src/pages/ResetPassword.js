@@ -2,6 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
+import {
+  trackPasswordResetPageViewed,
+  trackPasswordResetSubmitted,
+  trackPasswordResetCompleted,
+  trackPasswordResetFailed,
+  trackPasswordResetTokenInvalid,
+} from '../services/analytics';
 
 const ResetPassword = () => {
   const [searchParams] = useSearchParams();
@@ -25,9 +32,13 @@ const ResetPassword = () => {
   useEffect(() => {
     const tokenFromUrl = searchParams.get('token');
 
+    // Track page view
+    trackPasswordResetPageViewed(!!tokenFromUrl);
+
     if (!tokenFromUrl) {
       setError('Invalid reset link. Please request a new password reset.');
       setValidating(false);
+      trackPasswordResetTokenInvalid();
       return;
     }
 
@@ -44,6 +55,7 @@ const ResetPassword = () => {
         setError(errorMessage);
         setToken(''); // Clear token to prevent showing the form
         setValidating(false);
+        trackPasswordResetTokenInvalid();
       }
     };
 
@@ -90,10 +102,12 @@ const ResetPassword = () => {
 
     setError('');
     setLoading(true);
+    trackPasswordResetSubmitted();
 
     try {
       await resetPassword(token, password);
       setSuccess(true);
+      trackPasswordResetCompleted();
 
       // Redirect to home page (login modal) after 3 seconds
       setTimeout(() => {
@@ -102,6 +116,7 @@ const ResetPassword = () => {
     } catch (err) {
       const errorMessage = err.response?.data?.error || 'Failed to reset password. Please try again.';
       setError(errorMessage);
+      trackPasswordResetFailed(errorMessage);
     } finally {
       setLoading(false);
     }

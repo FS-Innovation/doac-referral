@@ -71,7 +71,7 @@ export const userAPI = {
   getPurchaseHistory: () => api.get('/user/purchase-history'),
   updateRedirectPlatform: (platform) => api.put('/user/redirect-platform', { platform }),
   getSelectedEpisode: () => api.get('/user/selected-episode'),
-  updateSelectedEpisode: (youtubeVideoId) => api.put('/user/selected-episode', { youtubeVideoId })
+  updateSelectedEpisode: (youtubeVideoId, source = 'manual') => api.put('/user/selected-episode', { youtubeVideoId, source })
 };
 
 // Product endpoints

@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api';
+import {
+  trackEmailVerificationPageViewed,
+  trackEmailVerified,
+  trackEmailVerificationFailed,
+} from '../services/analytics';
 import './CookiePolicy.css';
 
 const VerifyEmail = () => {
@@ -15,9 +20,13 @@ const VerifyEmail = () => {
   useEffect(() => {
     const token = searchParams.get('token');
 
+    // Track page view
+    trackEmailVerificationPageViewed(!!token);
+
     if (!token) {
       setStatus('error');
       setMessage('No verification token provided. Please check your email for the correct link.');
+      trackEmailVerificationFailed('no_token');
       return;
     }
 
@@ -28,9 +37,11 @@ const VerifyEmail = () => {
         if (response.data.alreadyVerified) {
           setStatus('already-verified');
           setMessage('Your email is already verified.');
+          trackEmailVerified('already_verified');
         } else {
           setStatus('success');
           setMessage(response.data.message || 'Email verified successfully!');
+          trackEmailVerified('new_verification');
           // Refresh the auth context's verification status
           if (isAuthenticated) {
             checkVerificationStatus();
@@ -42,18 +53,21 @@ const VerifyEmail = () => {
         if (isAuthenticated && emailVerified) {
           setStatus('already-verified');
           setMessage('Your email is already verified.');
+          trackEmailVerified('already_verified');
         } else if (isAuthenticated) {
           // User is logged in but not verified - check their current status
           const isVerified = await checkVerificationStatus();
           if (isVerified) {
             setStatus('already-verified');
             setMessage('Your email is already verified.');
+            trackEmailVerified('already_verified');
           } else {
             setStatus('error');
             setMessage(
               error.response?.data?.error ||
               'Failed to verify email. The link may have expired.'
             );
+            trackEmailVerificationFailed(error.response?.data?.error || 'token_expired');
           }
         } else {
           setStatus('error');
@@ -61,6 +75,7 @@ const VerifyEmail = () => {
             error.response?.data?.error ||
             'Failed to verify email. The link may have expired.'
           );
+          trackEmailVerificationFailed(error.response?.data?.error || 'token_expired');
         }
       }
     };

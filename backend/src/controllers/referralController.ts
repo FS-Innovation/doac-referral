@@ -160,12 +160,15 @@ export const trackReferralClick = async (req: Request, res: Response) => {
       if (selfClickReason) fraudFlags.push(`self_click:${selfClickReason}`);
       if (req.body.fraudReason) fraudFlags.push(req.body.fraudReason);
 
+      // Extract episode ID from request (from ?e= URL parameter)
+      const episodeId = req.body.episodeId || null;
+
       // NEW FLOW: Record click but DON'T award points yet
       // Points will be awarded when user clicks platform button on landing page
       await client.query(
         `INSERT INTO referral_clicks
-          (user_id, ip_address, user_agent, device_id, device_fingerprint, browser_fingerprint, fraud_flags, points_awarded)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          (user_id, ip_address, user_agent, device_id, device_fingerprint, browser_fingerprint, fraud_flags, points_awarded, episode_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [
           userId,
           ipAddress,
@@ -174,7 +177,8 @@ export const trackReferralClick = async (req: Request, res: Response) => {
           deviceFingerprint || null,
           browserFingerprint || null,
           fraudFlags.length > 0 ? fraudFlags : null,
-          false // Points NOT awarded yet - will be awarded on platform button click
+          false, // Points NOT awarded yet - will be awarded on platform button click
+          episodeId
         ]
       );
 
@@ -413,6 +417,20 @@ export const awardPoints = async (req: Request, res: Response) => {
     } else {
       console.warn(`⚠️  Points NOT awarded for code ${code} - fraud flags: ${JSON.stringify(pending.fraudFlags)}`);
     }
+
+    // Update the most recent referral_click with platform and points_awarded status
+    // This completes the click record with conversion data
+    await pool.query(
+      `UPDATE referral_clicks
+       SET platform = $1, points_awarded = $2, episode_id = COALESCE(episode_id, $3)
+       WHERE id = (
+         SELECT id FROM referral_clicks
+         WHERE user_id = $4 AND device_id = $5
+         ORDER BY clicked_at DESC
+         LIMIT 1
+       )`,
+      [platform, !pending.skipPointsAward, episodeId || null, pending.userId, deviceId]
+    );
 
     // Delete pending click (one-time use)
     await redisClient.del(pendingClickKey);

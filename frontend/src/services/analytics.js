@@ -109,9 +109,29 @@ export const trackPasswordResetCompleted = () => {
   trackEvent('Password Reset Completed');
 };
 
+export const trackPasswordResetPageViewed = (hasToken = false) => {
+  trackEvent('Password Reset Page Viewed', { has_token: hasToken });
+};
+
+export const trackPasswordResetSubmitted = () => {
+  trackEvent('Password Reset Submitted');
+};
+
+export const trackPasswordResetFailed = (error) => {
+  trackEvent('Password Reset Failed', { error });
+};
+
+export const trackPasswordResetTokenInvalid = () => {
+  trackEvent('Password Reset Token Invalid');
+};
+
 // ============================================
 // EMAIL VERIFICATION EVENTS
 // ============================================
+
+export const trackEmailVerificationPageViewed = (hasToken = false) => {
+  trackEvent('Email Verification Page Viewed', { has_token: hasToken });
+};
 
 export const trackEmailVerificationSent = (email) => {
   trackEvent('Email Verification Sent', { email });
@@ -167,11 +187,64 @@ export const trackMarketingPreferencesUpdated = (channels) => {
 };
 
 // ============================================
+// EPISODE SELECTION EVENTS
+// ============================================
+
+/**
+ * Track when user changes their episode selection
+ */
+export const trackEpisodeSelectionChanged = (previousEpisodeId, newEpisodeId, episodeTitle, source = 'manual') => {
+  const isLatestMode = !newEpisodeId;
+  trackEvent('Episode Selection Changed', {
+    previous_episode_id: previousEpisodeId,
+    new_episode_id: newEpisodeId,
+    episode_title: episodeTitle,
+    selection_mode: isLatestMode ? 'latest' : 'specific',
+    source, // 'manual', 'url_param', 'onboarding'
+  });
+};
+
+/**
+ * Track when user opens the episode selector
+ */
+export const trackEpisodeSelectorOpened = (currentEpisodeId) => {
+  trackEvent('Episode Selector Opened', {
+    current_episode_id: currentEpisodeId,
+    current_mode: currentEpisodeId ? 'specific' : 'latest',
+  });
+};
+
+/**
+ * Track when user searches within episode selector
+ */
+export const trackEpisodeSearched = (searchQuery, resultsCount) => {
+  trackEvent('Episode Searched', {
+    search_query: searchQuery,
+    results_count: resultsCount,
+  });
+};
+
+/**
+ * Track when user's episode is auto-set from URL parameter
+ */
+export const trackEpisodeAutoSet = (episodeId, episodeTitle, source) => {
+  trackEvent('Episode Auto Set', {
+    episode_id: episodeId,
+    episode_title: episodeTitle,
+    source, // 'url_param', 'referral_link'
+  });
+};
+
+// ============================================
 // REFERRAL EVENTS
 // ============================================
 
-export const trackReferralLinkCopied = (referralCode) => {
-  trackEvent('Referral Link Copied', { referral_code: referralCode });
+export const trackReferralLinkCopied = (referralCode, episodeId = null) => {
+  trackEvent('Referral Link Copied', {
+    referral_code: referralCode,
+    episode_id: episodeId,
+    episode_mode: episodeId ? 'specific' : 'latest',
+  });
 };
 
 export const trackReferralLinkShared = (referralCode, platform) => {
@@ -530,7 +603,12 @@ export default {
   trackLogout,
   trackPasswordResetRequested,
   trackPasswordResetCompleted,
+  trackPasswordResetPageViewed,
+  trackPasswordResetSubmitted,
+  trackPasswordResetFailed,
+  trackPasswordResetTokenInvalid,
   // Email
+  trackEmailVerificationPageViewed,
   trackEmailVerificationSent,
   trackEmailVerificationResent,
   trackEmailVerified,
@@ -542,6 +620,11 @@ export default {
   trackProfileSkipped,
   trackInterestsSelected,
   trackMarketingPreferencesUpdated,
+  // Episode Selection
+  trackEpisodeSelectionChanged,
+  trackEpisodeSelectorOpened,
+  trackEpisodeSearched,
+  trackEpisodeAutoSet,
   // Referral
   trackReferralLinkCopied,
   trackReferralLinkShared,

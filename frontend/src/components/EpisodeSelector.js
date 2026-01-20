@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { episodesAPI } from '../services/api';
 import {
   getYouTubeThumbnail,
@@ -8,6 +8,11 @@ import {
   getSelectedEpisodeId,
   setSelectedEpisodeId
 } from '../utils/episode';
+import {
+  trackEpisodeSelectionChanged,
+  trackEpisodeSelectorOpened,
+  trackEpisodeSearched,
+} from '../services/analytics';
 
 const EpisodeSelector = ({ onEpisodeSelect, referralCode }) => {
   const [episodes, setEpisodes] = useState([]);
@@ -17,6 +22,7 @@ const EpisodeSelector = ({ onEpisodeSelect, referralCode }) => {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [isExpanded, setIsExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const searchDebounceRef = useRef(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -55,12 +61,54 @@ const EpisodeSelector = ({ onEpisodeSelect, referralCode }) => {
   };
 
   const handleEpisodeClick = (episode) => {
+    // Track the change (previous -> new)
+    const previousEpisode = episodes.find(ep => ep.id === selectedId);
+    const previousVideoId = previousEpisode?.youtube_video_id || null;
+
+    if (episode.id !== selectedId) {
+      trackEpisodeSelectionChanged(
+        previousVideoId,
+        episode.youtube_video_id,
+        episode.title,
+        'manual'
+      );
+    }
+
     setSelectedId(episode.id);
     setSelectedEpisodeId(episode.id);
     setIsExpanded(false);
     setSearchQuery('');
     if (onEpisodeSelect) {
       onEpisodeSelect(episode);
+    }
+  };
+
+  // Handle expand/collapse with tracking
+  const handleExpandToggle = () => {
+    if (!isExpanded) {
+      const currentEpisode = episodes.find(ep => ep.id === selectedId);
+      trackEpisodeSelectorOpened(currentEpisode?.youtube_video_id || null);
+    }
+    setIsExpanded(!isExpanded);
+  };
+
+  // Track search with debounce
+  const handleSearchChange = (e) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+
+    // Debounce search tracking (500ms)
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+    if (query.length >= 2) {
+      searchDebounceRef.current = setTimeout(() => {
+        const results = episodes.filter(episode =>
+          episode.title.toLowerCase().includes(query.toLowerCase()) ||
+          episode.episode_number.toString().includes(query)
+        );
+        trackEpisodeSearched(query, results.length);
+      }, 500);
     }
   };
 
@@ -187,7 +235,7 @@ const EpisodeSelector = ({ onEpisodeSelect, referralCode }) => {
 
             {/* Change Button */}
             <button
-              onClick={() => setIsExpanded(true)}
+              onClick={handleExpandToggle}
               style={{
                 background: '#FFF',
                 color: '#000',
@@ -257,7 +305,7 @@ const EpisodeSelector = ({ onEpisodeSelect, referralCode }) => {
               type="text"
               placeholder="Search episodes..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={handleSearchChange}
               style={{
                 width: '100%',
                 padding: isMobile ? '14px 16px' : '12px 16px',

@@ -116,7 +116,7 @@ export const updateRedirectPlatform = async (req: AuthRequest, res: Response) =>
 
 export const updateSelectedEpisode = async (req: AuthRequest, res: Response) => {
   try {
-    const { youtubeVideoId } = req.body;
+    const { youtubeVideoId, source = 'manual' } = req.body;
     const userId = req.user!.id;
 
     // youtubeVideoId can be null (for "Latest") or a YouTube video ID string
@@ -129,17 +129,38 @@ export const updateSelectedEpisode = async (req: AuthRequest, res: Response) => 
       }
     }
 
-    // Update user's selected episode (NULL means "Latest")
-    await pool.query(
-      'UPDATE users SET selected_episode_id = $1 WHERE id = $2',
-      [youtubeVideoId || null, userId]
+    // Get current selection for history tracking
+    const currentResult = await pool.query(
+      'SELECT selected_episode_id FROM users WHERE id = $1',
+      [userId]
     );
+    const previousEpisodeId = currentResult.rows[0]?.selected_episode_id || null;
+    const newEpisodeId = youtubeVideoId || null;
 
-    console.log(`✅ User ${userId} updated selected episode to: ${youtubeVideoId || 'LATEST'}`);
+    // Only update and log if there's an actual change
+    if (previousEpisodeId !== newEpisodeId) {
+      // Update user's selected episode (NULL means "Latest")
+      await pool.query(
+        'UPDATE users SET selected_episode_id = $1 WHERE id = $2',
+        [newEpisodeId, userId]
+      );
+
+      // Log to episode_selection_history for time-series analytics
+      const selectionMode = newEpisodeId ? 'specific' : 'latest';
+      await pool.query(
+        `INSERT INTO episode_selection_history
+         (user_id, previous_episode_id, new_episode_id, selection_mode, source)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [userId, previousEpisodeId, newEpisodeId, selectionMode, source]
+      );
+
+      console.log(`✅ User ${userId} changed episode: ${previousEpisodeId || 'LATEST'} → ${newEpisodeId || 'LATEST'} (source: ${source})`);
+    }
 
     res.json({
       message: 'Episode preference updated successfully',
-      selectedEpisodeId: youtubeVideoId || null
+      selectedEpisodeId: newEpisodeId,
+      changed: previousEpisodeId !== newEpisodeId
     });
   } catch (error) {
     console.error('Update selected episode error:', error);
