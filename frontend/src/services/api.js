@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getDeviceId, getDeviceFingerprint, getBrowserFingerprint } from '../utils/fingerprint';
+import { getDeviceId, getDeviceFingerprint, getBrowserFingerprint, getBotScore, getExecutionProof } from '../utils/fingerprint';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
@@ -19,10 +19,15 @@ api.interceptors.request.use(
       const deviceId = getDeviceId();
       const deviceFingerprint = await getDeviceFingerprint();
       const browserFingerprint = await getBrowserFingerprint();
+      const botCheck = getBotScore();
+      const execProof = getExecutionProof();
 
       config.headers['x-device-id'] = deviceId;
       config.headers['x-device-fingerprint'] = deviceFingerprint;
       config.headers['x-browser-fingerprint'] = browserFingerprint;
+      config.headers['x-bot-score'] = botCheck.score.toString();
+      config.headers['x-bot-signals'] = botCheck.signals.join(',');
+      config.headers['x-exec-proof'] = JSON.stringify(execProof);
     } catch (error) {
       console.error('Error generating fingerprints:', error);
       // Continue with request even if fingerprinting fails

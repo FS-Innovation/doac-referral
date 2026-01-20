@@ -1,225 +1,72 @@
-import './CookiePolicy.css'; // Reuse the same styling
+import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import './PrivacyPolicy.css';
 
 const TermsConditions = () => {
+  useEffect(() => {
+    // Scroll to top on mount
+    window.scrollTo(0, 0);
+
+    // Remove existing Termly script to force reload
+    const existingScript = document.getElementById('termly-jssdk');
+    if (existingScript) {
+      existingScript.remove();
+    }
+
+    // Load Termly embed script fresh
+    const script = document.createElement('script');
+    script.id = 'termly-jssdk';
+    script.src = 'https://app.termly.io/embed-policy.min.js';
+    script.async = true;
+    document.body.appendChild(script);
+
+    // Cleanup on unmount
+    return () => {
+      const scriptToRemove = document.getElementById('termly-jssdk');
+      if (scriptToRemove) {
+        scriptToRemove.remove();
+      }
+    };
+  }, []);
+
   return (
-    <div className="policy-page">
-      <div className="policy-container">
-        <h1>Terms & Conditions</h1>
-        <p className="policy-updated">Last Updated: 14 January 2026</p>
-
-        <section className="policy-section">
-          <h2>Introduction</h2>
-          <p>
-            These terms and conditions apply between you, the User of the DOAC Perks referral system (the "Service"),
-            and Flight Story Ltd, the owner and operator of this Service. Please read these terms and conditions carefully,
-            as they affect your legal rights.
-          </p>
-          <p>
-            Your agreement to comply with and be bound by these terms and conditions is deemed to occur upon your first use
-            of the Service. If you do not agree to be bound by these terms and conditions, you should stop using the Service immediately.
-          </p>
-          <p>
-            <strong>You must be at least 18 years of age to use this Service.</strong> By using the Service and agreeing to
-            these terms and conditions, you represent and warrant that you are at least 18 years of age.
-          </p>
-        </section>
-
-        <section className="policy-section">
-          <h2>Account Registration</h2>
-          <ul>
-            <li>You must ensure that the details provided by you on registration or at any time are correct and complete.</li>
-            <li>You must inform us immediately of any changes to the information that you provide when registering.</li>
-            <li>We may suspend or cancel your account with immediate effect if you breach these terms and conditions.</li>
-            <li>You are responsible for maintaining the confidentiality of your account credentials.</li>
-            <li>You may cancel your account at any time by contacting us.</li>
-          </ul>
-
-          <h3>Information We Collect at Registration</h3>
-          <p>When you create an account, we collect the following information:</p>
-          <ul>
-            <li><strong>Email address</strong> (required) - For account authentication and essential communications</li>
-            <li><strong>First name</strong> (required) - For personalisation and prize fulfilment</li>
-            <li><strong>Age range</strong> (required) - To verify you meet the 18+ age requirement</li>
-            <li><strong>Country</strong> (required) - For prize eligibility and shipping purposes</li>
-            <li><strong>Marketing preferences</strong> (optional) - Your choice to receive promotional communications</li>
-          </ul>
-          <p>By registering, you confirm that all information provided is accurate and that you are at least 18 years of age.</p>
-        </section>
-
-        <section className="policy-section">
-          <h2>Marketing Communications</h2>
-          <p>
-            During registration, you may choose to opt in to receive marketing communications from us. This is entirely optional
-            and not required to use the Service.
-          </p>
-          <ul>
-            <li>Marketing emails may include information about products, offers, promotions, and news from DOAC and our partners.</li>
-            <li>You can opt out at any time by clicking the unsubscribe link in any email or by updating your account preferences.</li>
-            <li>Opting out of marketing will not affect your access to the Service or essential account communications.</li>
-            <li>We will not share your email address with third parties for their own marketing purposes.</li>
-          </ul>
-        </section>
-
-        <section className="policy-section">
-          <h2>Referral Program Rules</h2>
-
-          <h3>Earning Points</h3>
-          <ul>
-            <li>Points are earned when someone clicks on your unique referral link.</li>
-            <li>Each click from a unique device within a 24-hour period will earn you points.</li>
-            <li>Points are awarded automatically upon successful referral click tracking.</li>
-          </ul>
-
-          <h3>Prohibited Activities</h3>
-          <p><strong>You may NOT:</strong></p>
-          <ul>
-            <li><strong>Self-clicking:</strong> Click on your own referral links to earn points.</li>
-            <li><strong>Fraud or manipulation:</strong> Use any automated means, bots, scripts, or services to generate clicks.</li>
-            <li><strong>VPN or proxy abuse:</strong> Switch IP addresses or use VPN services to generate multiple clicks from the same device.</li>
-            <li><strong>Device manipulation:</strong> Clear browser data repeatedly to circumvent our duplicate detection systems.</li>
-            <li><strong>Spam:</strong> Send unsolicited referral links or engage in spam activities.</li>
-            <li><strong>Multiple accounts:</strong> Create multiple accounts to abuse the referral system.</li>
-            <li><strong>Collusion:</strong> Coordinate with others to artificially inflate referral numbers.</li>
-          </ul>
-
-          <h3>Fraud Detection</h3>
-          <p>We employ industry-standard fraud detection measures including:</p>
-          <ul>
-            <li>Device fingerprinting (hardware and software characteristics)</li>
-            <li>IP address tracking</li>
-            <li>Browser fingerprinting</li>
-            <li>Duplicate click detection</li>
-            <li>Velocity monitoring</li>
-          </ul>
-          <p>These measures are designed to ensure fair use of the Service and prevent abuse.</p>
-        </section>
-
-        <section className="policy-section">
-          <h2>Prize Redemption</h2>
-          <ul>
-            <li>Points may be redeemed for prizes as displayed in the Service.</li>
-            <li>Prize availability is subject to change without notice.</li>
-            <li>We reserve the right to verify the legitimacy of points before prize redemption.</li>
-            <li><strong>Points earned through fraudulent or manipulative means will be nullified without notice.</strong></li>
-            <li><strong>Accounts found to be engaging in fraud will be permanently banned and all accumulated points forfeited.</strong></li>
-            <li>Prize redemption is subject to availability and may be delayed or substituted.</li>
-            <li>Once a prize is redeemed, the transaction is final and cannot be reversed.</li>
-            <li>We reserve the right to refuse prize redemption if we suspect fraudulent activity.</li>
-            <li><strong>Prize eligibility may vary by country.</strong> Some prizes (particularly physical products) may only be available to users in certain countries due to shipping, legal, or regulatory restrictions.</li>
-            <li>For physical prizes, we will use your registered first name and country to arrange delivery. You must ensure this information is accurate.</li>
-          </ul>
-        </section>
-
-        <section className="policy-section">
-          <h2>Intellectual Property</h2>
-          <p>
-            All content included on the Service is the property of Flight Story Ltd or other relevant third parties.
-            You may not reproduce, modify, copy, distribute or use for commercial purposes any content without our written permission.
-          </p>
-        </section>
-
-        <section className="policy-section">
-          <h2>Prohibited Use</h2>
-          <p>You may not use the Service:</p>
-          <ul>
-            <li>In any way which causes, or may cause, damage to the Service or interferes with any other person's use.</li>
-            <li>In any way which is harmful, unlawful, illegal, abusive, harassing, threatening or otherwise objectionable.</li>
-            <li>To transmit or store any malicious software, viruses, or harmful code.</li>
-            <li>To attempt to gain unauthorized access to any part of the Service or related systems.</li>
-          </ul>
-        </section>
-
-        <section className="policy-section">
-          <h2>Availability and Disclaimers</h2>
-          <ul>
-            <li>The Service is provided "as is" and on an "as available" basis.</li>
-            <li>We give no warranty that the Service will be free of defects, errors, or interruptions.</li>
-            <li>We reserve the right to alter, suspend or discontinue any part of the Service at any time.</li>
-            <li>We are under no obligation to update information on the Service.</li>
-          </ul>
-        </section>
-
-        <section className="policy-section">
-          <h2>Limitation of Liability</h2>
-          <p>To the maximum extent permitted by law, Flight Story Ltd accepts no liability for:</p>
-          <ul>
-            <li>Any business losses, such as loss of profits, income, revenue, or anticipated savings.</li>
-            <li>Loss or corruption of any data.</li>
-            <li>Any special, indirect or consequential loss or damage.</li>
-            <li>Loss of points due to account suspension or termination for breach of terms.</li>
-            <li>Unavailability or changes to prizes.</li>
-          </ul>
-          <p>
-            Nothing in these terms will limit our liability for death or personal injury resulting from our negligence,
-            or for fraud or fraudulent misrepresentation.
-          </p>
-        </section>
-
-        <section className="policy-section">
-          <h2>Account Termination</h2>
-          <p>We reserve the right to:</p>
-          <ul>
-            <li>Suspend or terminate accounts that violate these terms.</li>
-            <li>Remove points earned through fraudulent means.</li>
-            <li>Ban users permanently for repeated violations.</li>
-            <li>Take legal action for serious breaches.</li>
-          </ul>
-        </section>
-
-        <section className="policy-section">
-          <h2>Changes to Terms</h2>
-          <p>
-            We may update these terms from time to time. Continued use of the Service after changes constitutes
-            acceptance of the revised terms. We will notify users of material changes.
-          </p>
-        </section>
-
-        <section className="policy-section">
-          <h2>Data Protection</h2>
-          <p>
-            Your personal data is processed in accordance with the UK General Data Protection Regulation (UK GDPR) and the
-            Data Protection Act 2018. For full details on how we collect, use, and protect your data, please see our{' '}
-            <a href="/privacy-policy">Privacy Policy</a>.
-          </p>
-          <p>You have the right to:</p>
-          <ul>
-            <li>Access your personal data</li>
-            <li>Correct inaccurate data</li>
-            <li>Request deletion of your data</li>
-            <li>Object to processing</li>
-            <li>Data portability</li>
-            <li>Withdraw consent for marketing at any time</li>
-          </ul>
-          <p>
-            To exercise any of these rights, contact us at <strong>contact@flightstory.com</strong>. You also have the right
-            to lodge a complaint with the Information Commissioner's Office (ICO) if you believe your data protection rights
-            have been breached.
-          </p>
-        </section>
-
-        <section className="policy-section">
-          <h2>General</h2>
-          <ul>
-            <li>These terms are governed by the laws of England and Wales.</li>
-            <li>Any disputes shall be subject to the exclusive jurisdiction of the English and Welsh courts.</li>
-            <li>If any provision is found to be invalid, the remaining provisions remain in effect.</li>
-            <li>You may not transfer your rights under these terms to any other person.</li>
-          </ul>
-        </section>
-
-        <div className="contact-info">
-          <p><strong>Flight Story Ltd</strong></p>
-          <p>Operating: DOAC Perks Referral System</p>
-          <p>Website: https://doac-perks.com</p>
-          <p>For questions: contact@flightstory.com</p>
+    <div className="privacy-policy-page">
+      {/* Navigation Header */}
+      <header className="policy-header">
+        <div className="policy-header-container">
+          <Link to="/dashboard" className="policy-logo-link">
+            <img
+              src="https://storage.googleapis.com/doac-perks/e4e508a04084eee9320c875b55dca2cec34de30b.png"
+              alt="DOAC Logo"
+              className="policy-logo-image"
+            />
+          </Link>
         </div>
+      </header>
+
+      <div className="privacy-policy-container">
+        <div
+          name="termly-embed"
+          data-id="90be1628-e23c-4bcd-9a73-5a3f666a5f9d"
+        />
 
         <div className="policy-footer">
-          <p><strong>By using the DOAC Perks Service, you acknowledge that you have read, understood, and agree to be bound by these Terms & Conditions.</strong></p>
           <div className="policy-links">
-            <a href="/">← Back to Home</a>
-            <a href="/privacy-policy">Privacy Policy</a>
-            <a href="/cookie-policy">Cookie Policy</a>
+            <Link to="/privacy-policy">Privacy Policy</Link>
+            <Link to="/cookie-policy">Cookie Policy</Link>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                if (window.displayPreferenceModal) {
+                  window.displayPreferenceModal();
+                } else if (window.Termly && window.Termly.displayPreferenceModal) {
+                  window.Termly.displayPreferenceModal();
+                }
+              }}
+            >
+              Consent Preferences
+            </a>
           </div>
         </div>
       </div>

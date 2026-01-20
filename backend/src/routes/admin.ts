@@ -6,7 +6,9 @@ import {
   getSettings,
   getAnalytics,
   updateLatestEpisodes,
-  getCurrentEpisodeLinks
+  getCurrentEpisodeLinks,
+  getLeaderboard,
+  verifyWinner
 } from '../controllers/adminController';
 import { authenticateToken, requireAdmin } from '../middleware/auth';
 
@@ -32,5 +34,9 @@ router.get('/analytics', getAnalytics);
 // Episode Updates
 router.post('/episodes/update', updateLatestEpisodes);
 router.get('/episodes/current', getCurrentEpisodeLinks);
+
+// Winner Verification (Forensic Analysis)
+router.get('/leaderboard', getLeaderboard);
+router.get('/verify-winner/:userId', verifyWinner);
 
 export default router;

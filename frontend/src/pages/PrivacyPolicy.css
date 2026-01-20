@@ -1,6 +1,6 @@
-/* Cookie Policy Page - Dark theme with white Termly container */
+/* Privacy Policy Page - Dark theme with white Termly container */
 
-.cookie-policy-page {
+.privacy-policy-page {
   min-height: 100vh;
   background-color: #000000;
   padding-top: 80px; /* Account for fixed header */
@@ -42,7 +42,7 @@
 }
 
 /* Container */
-.cookie-policy-container {
+.privacy-policy-container {
   max-width: 900px;
   margin: 24px auto 0;
   background: #ffffff;
@@ -54,28 +54,28 @@
 }
 
 @media (min-width: 940px) {
-  .cookie-policy-container {
+  .privacy-policy-container {
     margin-left: auto;
     margin-right: auto;
   }
 }
 
 /* Footer */
-.cookie-policy-container .policy-footer {
+.privacy-policy-container .policy-footer {
   margin-top: 40px;
   padding-top: 24px;
   border-top: 1px solid #e5e5e5;
   text-align: center;
 }
 
-.cookie-policy-container .policy-links {
+.privacy-policy-container .policy-links {
   display: flex;
   gap: 32px;
   justify-content: center;
   flex-wrap: wrap;
 }
 
-.cookie-policy-container .policy-links a {
+.privacy-policy-container .policy-links a {
   color: #5A2F30 !important;
   text-decoration: none !important;
   font-weight: 600 !important;
@@ -86,7 +86,7 @@
   background-clip: unset !important;
 }
 
-.cookie-policy-container .policy-links a:hover {
+.privacy-policy-container .policy-links a:hover {
   color: #3d1f20 !important;
   -webkit-text-fill-color: #3d1f20 !important;
   text-decoration: underline !important;
@@ -94,7 +94,7 @@
 
 /* Mobile Responsive */
 @media (max-width: 768px) {
-  .cookie-policy-page {
+  .privacy-policy-page {
     padding-top: 60px;
     padding-bottom: 20px;
   }
@@ -108,7 +108,7 @@
     height: 35px;
   }
 
-  .cookie-policy-container {
+  .privacy-policy-container {
     padding: 32px 24px;
     border-radius: 12px;
     margin-left: 12px;
@@ -116,14 +116,14 @@
     margin-top: 16px;
   }
 
-  .cookie-policy-container .policy-links {
+  .privacy-policy-container .policy-links {
     flex-direction: column;
     gap: 16px;
   }
 }
 
 @media (max-width: 480px) {
-  .cookie-policy-page {
+  .privacy-policy-page {
     padding-top: 56px;
   }
 
@@ -136,7 +136,7 @@
     height: 32px;
   }
 
-  .cookie-policy-container {
+  .privacy-policy-container {
     padding: 24px 16px;
   }
 }

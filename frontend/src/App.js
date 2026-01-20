@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Header from './components/Header';
-import CookieConsent from './components/CookieConsent';
 import LoadingSpinner from './components/LoadingSpinner';
 import { trackPage, trackSessionStarted } from './services/analytics';
 
@@ -196,7 +195,6 @@ function App() {
       <AuthProvider>
         <PageTracker />
         <AppContent />
-        <CookieConsent />
       </AuthProvider>
     </Router>
   );

@@ -1,0 +1,6 @@
+# Allow all crawlers (including Termly scanner)
+User-agent: *
+Allow: /
+
+# Sitemap (optional - add if you have one)
+# Sitemap: https://doac-perks.com/sitemap.xml

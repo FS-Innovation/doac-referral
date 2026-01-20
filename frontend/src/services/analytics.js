@@ -412,6 +412,76 @@ export const trackReferralHover = (referralCode, element, durationMs) => {
 };
 
 // ============================================
+// FRAUD DETECTION EVENTS (for analytics dashboards)
+// ============================================
+
+/**
+ * Track when points are awarded via referral
+ * Includes fraud detection metadata for analysis
+ */
+export const trackReferralPointAwarded = (referralCode, platform, wasAwarded, metadata = {}) => {
+  trackEvent('Referral Point Awarded', {
+    referral_code: referralCode,
+    platform,
+    was_awarded: wasAwarded,
+    confidence_score: metadata.confidenceScore,
+    time_on_page_ms: metadata.timeOnPage,
+    bot_score: metadata.botScore,
+    fraud_flags_count: metadata.fraudFlags?.length || 0,
+  });
+};
+
+/**
+ * Track when a referral click is blocked
+ */
+export const trackReferralBlocked = (referralCode, reason, metadata = {}) => {
+  trackEvent('Referral Click Blocked', {
+    referral_code: referralCode,
+    block_reason: reason,
+    bot_score: metadata.botScore,
+    time_on_page_ms: metadata.timeOnPage,
+  });
+};
+
+/**
+ * Track self-click detection (user clicking own link)
+ */
+export const trackSelfClickDetected = (referralCode, matchScore, matchReason) => {
+  trackEvent('Self Click Detected', {
+    referral_code: referralCode,
+    match_score: matchScore,
+    match_reason: matchReason,
+  });
+};
+
+/**
+ * Track when user hits a cap (daily/lifetime)
+ */
+export const trackReferralCapReached = (referralCode, capType, currentValue, maxValue) => {
+  trackEvent('Referral Cap Reached', {
+    referral_code: referralCode,
+    cap_type: capType,
+    current_value: currentValue,
+    max_value: maxValue,
+  });
+};
+
+/**
+ * Track bot detection signals (for monitoring false positive rate)
+ */
+export const trackBotSignalsDetected = (referralCode, botScore, signals) => {
+  // Only track if there are signals to report
+  if (signals && signals.length > 0) {
+    trackEvent('Bot Signals Detected', {
+      referral_code: referralCode,
+      bot_score: botScore,
+      signals: signals.join(','),
+      signal_count: signals.length,
+    });
+  }
+};
+
+// ============================================
 // POINTS & REWARDS EVENTS
 // ============================================
 
@@ -662,6 +732,12 @@ export default {
   trackReferralError,
   trackReferralEngagement,
   trackReferralHover,
+  // Fraud Detection
+  trackReferralPointAwarded,
+  trackReferralBlocked,
+  trackSelfClickDetected,
+  trackReferralCapReached,
+  trackBotSignalsDetected,
   // Points
   trackPointsEarned,
   trackPointsMilestoneReached,
