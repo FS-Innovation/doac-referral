@@ -14,6 +14,7 @@ import {
   trackReferralBlocked,
 } from '../services/analytics';
 import { getBotScore } from '../utils/fingerprint';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 /**
  * Referral Landing Page - Clean, fast design
@@ -84,20 +85,18 @@ const ReferralLanding = () => {
     // Get episode ID from query params (e.g., ?e=123)
     const episodeId = searchParams.get('e');
 
+    // Store episode ID in sessionStorage for deep link preservation
+    // This allows the Dashboard to pre-select this episode after signup/login
+    if (episodeId) {
+      setReferralSourceEpisode(episodeId);
+    }
+
     try {
-      console.log('Tracking referral click for code:', code);
-      // Track the click
-      await api.get(`/referral/${code}`);
-
-      // Store episode ID in sessionStorage for deep link preservation
-      // This allows the Dashboard to pre-select this episode after signup/login
-      if (episodeId) {
-        setReferralSourceEpisode(episodeId);
-      }
-
-      // Fetch the specific episode or latest if not specified
+      // PRIORITY: Load episode data FIRST (fast, no fingerprints needed)
+      // This makes the page render instantly
       const response = await episodesAPI.getForReferral(code, episodeId);
       setEpisode(response.data);
+      setLoading(false); // Show content immediately
 
       // Track page load with rich context (only once)
       if (!hasTrackedPageLoad.current) {
@@ -109,11 +108,19 @@ const ReferralLanding = () => {
       if (response.data) {
         trackReferralEpisodeViewed(code, response.data.youtube_video_id, response.data.title);
       }
+
+      // BACKGROUND: Track the referral click (requires fingerprints, can be slow)
+      // Don't block page render for this - fraud detection happens server-side
+      console.log('Tracking referral click for code:', code);
+      api.get(`/referral/${code}`).catch(err => {
+        // Silent fail - tracking is non-critical, page already loaded
+        console.warn('Failed to track referral click:', err.message);
+      });
+
     } catch (err) {
-      console.error('Failed to track click or load episode:', err);
+      console.error('Failed to load episode:', err);
       setError('Failed to load content. Please try again.');
       trackReferralError(code, 'load_failed', err.message);
-    } finally {
       setLoading(false);
     }
   };
@@ -208,35 +215,7 @@ const ReferralLanding = () => {
   };
 
   if (loading) {
-    return (
-      <div style={{
-        position: 'fixed',
-        inset: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#000',
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            border: '2px solid rgba(255, 255, 255, 0.1)',
-            borderTop: '2px solid rgba(255, 255, 255, 0.8)',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-            margin: '0 auto',
-          }} />
-          <p style={{
-            marginTop: '20px',
-            color: 'rgba(255, 255, 255, 0.5)',
-            fontSize: '0.875rem',
-            fontFamily: "'Inter', -apple-system, sans-serif"
-          }}>Loading...</p>
-          <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   if (error) {

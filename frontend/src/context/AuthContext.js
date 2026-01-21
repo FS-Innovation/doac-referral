@@ -18,7 +18,8 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [emailVerified, setEmailVerified] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(null); // null = not yet checked, false = not verified, true = verified
+  const [emailVerifiedLoading, setEmailVerifiedLoading] = useState(false); // Only true when actively checking
   const loadingRef = useRef(false); // Prevent duplicate requests
   const retryTimeoutRef = useRef(null); // For retry mechanism
   const retryCountRef = useRef(0); // Track retry attempts
@@ -230,13 +231,17 @@ export const AuthProvider = ({ children }) => {
 
   // Check email verification status
   const checkVerificationStatus = async () => {
+    setEmailVerifiedLoading(true);
     try {
       const response = await authAPI.getVerificationStatus();
       setEmailVerified(response.data.emailVerified);
       return response.data.emailVerified;
     } catch (error) {
       console.error('Failed to check verification status:', error);
+      setEmailVerified(false);
       return false;
+    } finally {
+      setEmailVerifiedLoading(false);
     }
   };
 
@@ -246,15 +251,21 @@ export const AuthProvider = ({ children }) => {
     return response.data;
   };
 
-  // Check verification status when user is loaded
+  // Check verification status when user logs in (only on user ID change, not every refresh)
   useEffect(() => {
-    if (user) {
-      checkVerificationStatus();
+    if (user?.id) {
+      // Only check if we haven't already (emailVerified is null means first check needed)
+      if (emailVerified === null) {
+        setEmailVerifiedLoading(true);
+        checkVerificationStatus();
+      }
     } else {
-      setEmailVerified(false);
+      // User logged out - reset state
+      setEmailVerified(null);
+      setEmailVerifiedLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user?.id]);
 
   // Refresh user data (e.g., after points change)
   const refreshUser = async () => {
@@ -295,6 +306,7 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated: !!user,
     isAdmin: user?.isAdmin || false,
     emailVerified,
+    emailVerifiedLoading,
     checkVerificationStatus,
     resendVerificationEmail
   };

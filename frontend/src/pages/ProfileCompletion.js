@@ -15,6 +15,7 @@ import {
   trackExperimentViewed,
 } from '../services/analytics';
 import './ProfileCompletion.css';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const ProfileCompletion = () => {
   const { user, emailVerified, refreshUser } = useAuth();
@@ -363,14 +364,7 @@ const ProfileCompletion = () => {
   );
 
   if (loading) {
-    return (
-      <div className="profile-completion-page">
-        <div className="profile-loading">
-          <div className="spinner"></div>
-          <p>Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   // Build filled fields list (based on SAVED data)

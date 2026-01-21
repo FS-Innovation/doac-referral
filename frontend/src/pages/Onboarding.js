@@ -13,6 +13,7 @@ import {
   trackExperimentViewed,
 } from '../services/analytics';
 import './Onboarding.css';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const Onboarding = () => {
   const { user, emailVerified, refreshUser } = useAuth();
@@ -139,14 +140,7 @@ const Onboarding = () => {
   };
 
   if (loading) {
-    return (
-      <div className="onboarding-page">
-        <div className="onboarding-loading">
-          <div className="spinner"></div>
-          <p>Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (

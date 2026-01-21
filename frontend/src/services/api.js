@@ -11,23 +11,91 @@ const api = axios.create({
   }
 });
 
-// Interceptor to add fingerprint headers to all requests
+// ============================================================================
+// FINGERPRINT CACHING - Compute once per session, reuse for all requests
+// ============================================================================
+// Fingerprints don't change during a session, so computing them on every
+// request wastes 1-3 seconds (WebGL rendering, audio processing, font detection)
+let cachedFingerprints = null;
+let fingerprintPromise = null;
+
+const getCachedFingerprints = async () => {
+  // Return cached if available
+  if (cachedFingerprints) {
+    return cachedFingerprints;
+  }
+
+  // If computation is in progress, wait for it
+  if (fingerprintPromise) {
+    return fingerprintPromise;
+  }
+
+  // Start computation (only once)
+  fingerprintPromise = (async () => {
+    const deviceId = getDeviceId(); // Sync, fast
+    const botCheck = getBotScore(); // Sync, fast
+    const execProof = getExecutionProof(); // Sync, fast (~1-30ms)
+
+    // These are slow - run in parallel
+    const [deviceFingerprint, browserFingerprint] = await Promise.all([
+      getDeviceFingerprint(),
+      getBrowserFingerprint()
+    ]);
+
+    cachedFingerprints = {
+      deviceId,
+      deviceFingerprint,
+      browserFingerprint,
+      botScore: botCheck.score.toString(),
+      botSignals: botCheck.signals.join(','),
+      execProof: JSON.stringify(execProof)
+    };
+
+    return cachedFingerprints;
+  })();
+
+  return fingerprintPromise;
+};
+
+// Pre-warm fingerprint cache on module load (non-blocking)
+getCachedFingerprints().catch(() => {});
+
+// Endpoints that REQUIRE fingerprints (fraud detection)
+// All other endpoints get fingerprints IF already cached, but don't wait
+const FINGERPRINT_REQUIRED_PATTERNS = [
+  '/referral/',      // Referral click tracking - needs fraud detection
+  '/auth/register',  // Registration - needs fraud detection
+  '/auth/login',     // Login - needs fraud detection
+];
+
+const requiresFingerprints = (url) => {
+  return FINGERPRINT_REQUIRED_PATTERNS.some(pattern => url?.includes(pattern));
+};
+
+// Interceptor to add fingerprint headers to requests
 api.interceptors.request.use(
   async (config) => {
     try {
-      // Add device/browser fingerprints to all requests for fraud detection
-      const deviceId = getDeviceId();
-      const deviceFingerprint = await getDeviceFingerprint();
-      const browserFingerprint = await getBrowserFingerprint();
-      const botCheck = getBotScore();
-      const execProof = getExecutionProof();
-
-      config.headers['x-device-id'] = deviceId;
-      config.headers['x-device-fingerprint'] = deviceFingerprint;
-      config.headers['x-browser-fingerprint'] = browserFingerprint;
-      config.headers['x-bot-score'] = botCheck.score.toString();
-      config.headers['x-bot-signals'] = botCheck.signals.join(',');
-      config.headers['x-exec-proof'] = JSON.stringify(execProof);
+      if (requiresFingerprints(config.url)) {
+        // WAIT for fingerprints - these endpoints need them for fraud detection
+        const fps = await getCachedFingerprints();
+        config.headers['x-device-id'] = fps.deviceId;
+        config.headers['x-device-fingerprint'] = fps.deviceFingerprint;
+        config.headers['x-browser-fingerprint'] = fps.browserFingerprint;
+        config.headers['x-bot-score'] = fps.botScore;
+        config.headers['x-bot-signals'] = fps.botSignals;
+        config.headers['x-exec-proof'] = fps.execProof;
+      } else if (cachedFingerprints) {
+        // Use cached fingerprints if available, but DON'T wait
+        // This allows episode fetches etc. to fire immediately
+        config.headers['x-device-id'] = cachedFingerprints.deviceId;
+        config.headers['x-device-fingerprint'] = cachedFingerprints.deviceFingerprint;
+        config.headers['x-browser-fingerprint'] = cachedFingerprints.browserFingerprint;
+        config.headers['x-bot-score'] = cachedFingerprints.botScore;
+        config.headers['x-bot-signals'] = cachedFingerprints.botSignals;
+        config.headers['x-exec-proof'] = cachedFingerprints.execProof;
+      }
+      // If fingerprints not required and not cached yet, request goes without them
     } catch (error) {
       console.error('Error generating fingerprints:', error);
       // Continue with request even if fingerprinting fails

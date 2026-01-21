@@ -37,8 +37,9 @@ function AuthenticatedRoute({ children }) {
 
 // Protected route wrapper - redirects to landing if not logged in
 function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading, emailVerified } = useAuth();
+  const { isAuthenticated, loading, emailVerified, emailVerifiedLoading } = useAuth();
 
+  // Wait for auth to load
   if (loading) {
     return <LoadingSpinner />;
   }
@@ -46,6 +47,12 @@ function ProtectedRoute({ children }) {
   // If not authenticated, go to landing page
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;
+  }
+
+  // Wait for email verification check to complete
+  // emailVerified === null means check hasn't completed yet
+  if (emailVerifiedLoading || emailVerified === null) {
+    return <LoadingSpinner />;
   }
 
   // If authenticated but email not verified, go to email confirmation
@@ -58,8 +65,9 @@ function ProtectedRoute({ children }) {
 
 // Route for users who need to confirm their email (authenticated but unverified)
 function UnverifiedRoute({ children }) {
-  const { isAuthenticated, loading, emailVerified } = useAuth();
+  const { isAuthenticated, loading, emailVerified, emailVerifiedLoading } = useAuth();
 
+  // Wait for auth to load
   if (loading) {
     return <LoadingSpinner />;
   }
@@ -67,6 +75,12 @@ function UnverifiedRoute({ children }) {
   // If not authenticated, go to landing page
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;
+  }
+
+  // Wait for email verification check to complete
+  // emailVerified === null means check hasn't completed yet
+  if (emailVerifiedLoading || emailVerified === null) {
+    return <LoadingSpinner />;
   }
 
   // If already verified, go to dashboard (onboarding modal will show if needed)

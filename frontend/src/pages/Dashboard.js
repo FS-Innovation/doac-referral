@@ -6,6 +6,7 @@ import SplitFlapCounter from '../components/SplitFlapCounter';
 import CopyLinkBar from '../components/CopyLinkBar';
 import PrizeRail from '../components/PrizeRail';
 import OnboardingModal from '../components/OnboardingModal';
+import LoadingSpinner from '../components/LoadingSpinner';
 import {
   buildReferralUrl,
   getYouTubeThumbnail,
@@ -560,7 +561,7 @@ const Dashboard = () => {
   }));
 
   if (loading) {
-    return <div className="loading">Loading...</div>;
+    return <LoadingSpinner />;
   }
 
   return (

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const ReferralRedirect = () => {
   const { code } = useParams();
@@ -19,11 +20,7 @@ const ReferralRedirect = () => {
     navigate(targetUrl, { replace: true });
   }, [code, navigate, searchParams]);
 
-  return (
-    <div className="loading">
-      Redirecting...
-    </div>
-  );
+  return <LoadingSpinner />;
 };
 
 export default ReferralRedirect;
