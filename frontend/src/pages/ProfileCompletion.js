@@ -579,7 +579,7 @@ const ProfileCompletion = () => {
 
               {filledFields.length === 0 && (
                 <div className="empty-state">
-                  <p>Add some information to personalize your profile</p>
+                  <p>Add some information to personalise your profile</p>
                 </div>
               )}
             </div>

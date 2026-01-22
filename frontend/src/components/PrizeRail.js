@@ -16,6 +16,7 @@ const PrizeRail = ({
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const [hoveredProgress, setHoveredProgress] = useState(null);
   const [hoveredCardPosition, setHoveredCardPosition] = useState({ pullX: 0, pullY: 0, rotateX: 0, rotateY: 0 });
+  const [lockedHoverPos, setLockedHoverPos] = useState({ x: 50, y: 50 }); // Mouse position % for locked card reveal
   const [buttonHovered, setButtonHovered] = useState(null);
   const [globalTime, setGlobalTime] = useState(0);
 
@@ -277,6 +278,12 @@ const PrizeRail = ({
     if (isMobile || !cardElement) return;
     const pullData = calculatePullTowardMouse(cardElement, e.clientX, e.clientY);
     setHoveredCardPosition(pullData);
+
+    // Track mouse position as % for locked card reveal glow
+    const rect = cardElement.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setLockedHoverPos({ x, y });
   }, [calculatePullTowardMouse, isMobile]);
 
   // Handle card hover enter
@@ -285,6 +292,12 @@ const PrizeRail = ({
     if (cardElement && !isMobile && e) {
       const pullData = calculatePullTowardMouse(cardElement, e.clientX, e.clientY);
       setHoveredCardPosition(pullData);
+
+      // Also set initial locked hover position
+      const rect = cardElement.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * 100;
+      const y = ((e.clientY - rect.top) / rect.height) * 100;
+      setLockedHoverPos({ x, y });
     }
   }, [calculatePullTowardMouse, isMobile]);
 
@@ -357,11 +370,13 @@ const PrizeRail = ({
 
   // Product images
   const getProductImage = (prize) => {
-    if (prize.prize_type === 'discount_code') return 'https://thediary.com/cdn/shop/files/1_DIARY_PopUpCardsWhite.png?v=1764327518&width=800';
-    if (prize.name?.includes('Vol. 1') || prize.name?.includes('Vol 1')) return 'https://thediary.com/cdn/shop/files/1_e87b669d-04ab-4f85-81c8-df353bbb2188.png?v=1749210128&width=700';
-    if (prize.name?.includes('Vol. 2') || prize.name?.includes('Vol 2')) return 'https://thediary.com/cdn/shop/files/1_b75fbc90-9bfe-49f2-baf5-3767c7992627.png?v=1762444332&width=700';
-    if (prize.name?.includes('Vol. 3') || prize.name?.includes('Vol 3') || prize.name?.includes('Game Edition')) return 'https://thediary.com/cdn/shop/files/CC3_Web_Image_3.jpg?v=1762859458&width=1000';
-    if (prize.name?.includes('1% Diary') || prize.name?.includes('Diary')) return 'https://thediary.com/cdn/shop/files/No_matter_your_goal_1_d1605690-ab79-45f3-a83d-f9d21e8223bc.png?v=1763725505&width=1000';
+    if (prize.name?.includes('10%')) return 'https://storage.googleapis.com/doac-perks/10percent.png';
+    if (prize.name?.includes('25%')) return 'https://storage.googleapis.com/doac-perks/25percent.png';
+    if (prize.name?.includes('50%')) return 'https://storage.googleapis.com/doac-perks/50percent.png';
+    if (prize.name?.includes('Vol. 1') || prize.name?.includes('Vol 1')) return 'https://storage.googleapis.com/doac-perks/convo1.png';
+    if (prize.name?.includes('Vol. 2') || prize.name?.includes('Vol 2')) return 'https://storage.googleapis.com/doac-perks/convo2.png';
+    if (prize.name?.includes('Vol. 3') || prize.name?.includes('Vol 3') || prize.name?.includes('Game Edition')) return 'https://storage.googleapis.com/doac-perks/convoGE.png';
+    if (prize.name?.includes('1% Diary') || prize.name?.includes('Diary')) return 'https://storage.googleapis.com/doac-perks/1percent.png';
     if (prize.is_mystery) return 'https://storage.googleapis.com/doac-perks/edited-photo.webp';
     return null;
   };
@@ -904,18 +919,39 @@ const PrizeRail = ({
             const isUnlocked = prize.status === 'unlocked';
             const isActive = index === activeIndex; // Is this the centered card?
             const isHovered = hoveredIndex === index && !isMobile && !isLocked;
+            const isLockedHovered = hoveredIndex === index && !isMobile && isLocked;
             const isMystery = prize.is_mystery;
             const productImage = getProductImage(prize);
             const isClaiming = claimingId === prize.id;
 
+            // Progress towards unlocking (0-100)
+            const progress = getProgress(prize);
+            // For locked cards, brightness scales from 0.5 (0%) to 0.95 (99%)
+            const lockedBrightness = isMystery ? 0.4 : 0.5 + (progress / 100) * 0.45;
+            // Overlay opacity scales from 0.35 (0%) to 0.08 (99%)
+            const lockedOverlayOpacity = isMystery ? 0.4 : 0.35 - (progress / 100) * 0.27;
+
             const offset = index - activeIndex;
             const depth = Math.abs(offset);
             const baseScale = 1 - depth * 0.03; // Slightly more scale difference for depth
-            // Opacity: active card full, others slightly dimmed, locked more dimmed
-            const opacity = isLocked ? 0.5 : isActive ? 1 : 0.85;
+            // Opacity: active card full, others slightly dimmed, locked scales with progress
+            const opacity = isLocked ? (isMystery ? 0.5 : 0.5 + (progress / 100) * 0.4) : isActive ? 1 : 0.85;
 
             // Dynamic hover intensity based on globalTime for pulsing effect
             const pulseIntensity = isHovered ? 0.5 + Math.sin(globalTime * 4) * 0.3 : 0;
+
+            // Calculate mystery card's gold reveal intensity based on proximity to global mouse glow
+            // Card center position as % of container (accounting for rail transform)
+            const cardCenterX = containerWidth > 0
+              ? ((railTransform + (index * (cardWidth + cardGap)) + cardWidth / 2) / containerWidth) * 100
+              : 50;
+            const cardCenterY = 50; // Cards are vertically centered
+            // Distance from mouse glow to card center (in % units)
+            const distToMouse = Math.sqrt(Math.pow(mousePos.x - cardCenterX, 2) + Math.pow(mousePos.y - cardCenterY, 2));
+            // Gold intensity: 1 when mouse is on card, fades to 0 at ~40% distance
+            const goldRevealIntensity = isMystery && isHovering && !isMobile
+              ? Math.max(0, 1 - distToMouse / 40)
+              : 0;
 
             // Get the dynamic pull values when this card is hovered
             const { pullX, pullY, rotateX, rotateY } = isHovered ? hoveredCardPosition : { pullX: 0, pullY: 0, rotateX: 0, rotateY: 0 };
@@ -1118,6 +1154,7 @@ const PrizeRail = ({
                   }}>
                     {productImage && (
                       <>
+                        {/* Base locked/dimmed image */}
                         <img
                           src={productImage}
                           alt={prize.name}
@@ -1125,8 +1162,9 @@ const PrizeRail = ({
                             width: '100%',
                             height: '100%',
                             objectFit: 'cover',
+                            objectPosition: 'center 20%',
                             filter: isLocked
-                              ? 'grayscale(1) brightness(0.25) contrast(0.9)'
+                              ? `grayscale(${isMystery ? 0.8 : 0.6 - (progress / 100) * 0.5}) brightness(${lockedBrightness}) contrast(0.95)`
                               : isHovered
                                 ? 'brightness(1.1) contrast(1.05) saturate(1.1)'
                                 : 'brightness(1) contrast(1)',
@@ -1134,6 +1172,27 @@ const PrizeRail = ({
                             transition: 'all 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
                           }}
                         />
+
+                        {/* Revealed bright image - masked by cursor position (locked cards only) */}
+                        {isLockedHovered && !isMystery && (
+                          <img
+                            src={productImage}
+                            alt=""
+                            style={{
+                              position: 'absolute',
+                              inset: 0,
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                              objectPosition: 'center 20%',
+                              filter: 'brightness(0.95) contrast(1.0) saturate(1.05)',
+                              pointerEvents: 'none',
+                              WebkitMaskImage: `radial-gradient(circle 160px at ${lockedHoverPos.x}% ${lockedHoverPos.y}%, black 0%, black 40%, transparent 80%)`,
+                              maskImage: `radial-gradient(circle 160px at ${lockedHoverPos.x}% ${lockedHoverPos.y}%, black 0%, black 40%, transparent 80%)`,
+                            }}
+                          />
+                        )}
+
                         <div style={{
                           position: 'absolute',
                           inset: 0,
@@ -1143,18 +1202,25 @@ const PrizeRail = ({
                               ? 'radial-gradient(ellipse 80% 70% at center, transparent 40%, rgba(0,0,0,0.3) 100%)'
                               : 'radial-gradient(ellipse 70% 60% at center, transparent 30%, rgba(0,0,0,0.4) 100%)',
                           pointerEvents: 'none',
+                          // Also mask the vignette so revealed area is clearer
+                          WebkitMaskImage: isLockedHovered && !isMystery
+                            ? `radial-gradient(circle 160px at ${lockedHoverPos.x}% ${lockedHoverPos.y}%, transparent 0%, transparent 30%, black 70%)`
+                            : 'none',
+                          maskImage: isLockedHovered && !isMystery
+                            ? `radial-gradient(circle 160px at ${lockedHoverPos.x}% ${lockedHoverPos.y}%, transparent 0%, transparent 30%, black 70%)`
+                            : 'none',
                         }} />
                         <div style={{
                           position: 'absolute',
                           bottom: 0,
                           left: 0,
                           right: 0,
-                          height: '70%',
+                          height: '10%',
                           background: isLocked
-                            ? 'linear-gradient(transparent, rgba(5,5,7,0.97) 70%, #050507 100%)'
+                            ? 'linear-gradient(transparent, #050507 100%)'
                             : isHovered
-                              ? 'linear-gradient(transparent, rgba(18,18,22,0.95) 70%, #121216 100%)'
-                              : 'linear-gradient(transparent, rgba(14,14,18,0.95) 70%, #0e0e12 100%)',
+                              ? 'linear-gradient(transparent, #121216 100%)'
+                              : 'linear-gradient(transparent, #0e0e12 100%)',
                           pointerEvents: 'none',
                         }} />
                       </>
@@ -1164,25 +1230,75 @@ const PrizeRail = ({
                     <div style={{
                       position: 'absolute',
                       inset: 0,
-                      background: 'rgba(0,0,0,0.4)',
-                      backdropFilter: 'blur(4px)',
+                      background: `rgba(0,0,0,${lockedOverlayOpacity})`,
+                      backdropFilter: isMystery ? 'none' : `blur(${Math.max(5, 11 - (progress / 100) * 6)}px)`,
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '12px',
+                      // Mask the dark overlay to reveal image underneath cursor
+                      WebkitMaskImage: isLockedHovered && !isMystery
+                        ? `radial-gradient(circle 160px at ${lockedHoverPos.x}% ${lockedHoverPos.y}%, transparent 0%, transparent 35%, black 75%)`
+                        : 'none',
+                      maskImage: isLockedHovered && !isMystery
+                        ? `radial-gradient(circle 160px at ${lockedHoverPos.x}% ${lockedHoverPos.y}%, transparent 0%, transparent 35%, black 75%)`
+                        : 'none',
                     }}>
                       {isMystery ? (
-                        <span style={{ fontSize: '3rem', color: 'rgba(255,255,255,0.1)', fontWeight: '200' }}>?</span>
+                        <>
+                          {/* Mystery ? - single element with gold shimmer class */}
+                          <span
+                            className="gold-text-shimmer"
+                            style={{
+                              '--gold-x': `${mousePos.x}%`,
+                              '--gold-y': `${mousePos.y}%`,
+                              '--gold-opacity': goldRevealIntensity,
+                              '--gold-glow': goldRevealIntensity > 0.1 ? `
+                                0 0 ${goldRevealIntensity * 8}px rgba(255,223,0,${goldRevealIntensity}),
+                                0 0 ${goldRevealIntensity * 20}px rgba(255,200,0,${goldRevealIntensity * 0.8}),
+                                0 0 ${goldRevealIntensity * 35}px rgba(218,165,32,${goldRevealIntensity * 0.6}),
+                                0 0 ${goldRevealIntensity * 50}px rgba(184,134,11,${goldRevealIntensity * 0.4})
+                              ` : 'none',
+                              fontSize: '3rem',
+                              fontWeight: '200',
+                              fontFamily: 'Inter, -apple-system, sans-serif',
+                            }}
+                          >
+                            ?
+                          </span>
+                          {/* EXCLUSIVE text - single element with gold shimmer class */}
+                          <span
+                            className="gold-text-shimmer"
+                            style={{
+                              '--gold-x': `${mousePos.x + 5}%`,
+                              '--gold-y': `${mousePos.y}%`,
+                              '--gold-opacity': goldRevealIntensity,
+                              '--gold-glow': goldRevealIntensity > 0.1 ? `
+                                0 0 ${goldRevealIntensity * 6}px rgba(255,223,0,${goldRevealIntensity * 0.9}),
+                                0 0 ${goldRevealIntensity * 15}px rgba(255,200,0,${goldRevealIntensity * 0.7}),
+                                0 0 ${goldRevealIntensity * 28}px rgba(218,165,32,${goldRevealIntensity * 0.5})
+                              ` : 'none',
+                              fontSize: '0.6rem',
+                              fontWeight: '500',
+                              letterSpacing: '0.2em',
+                              fontFamily: 'Inter, -apple-system, sans-serif',
+                            }}
+                          >
+                            EXCLUSIVE
+                          </span>
+                        </>
                       ) : (
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={`rgba(255,255,255,${0.4 + (progress / 100) * 0.2})`} strokeWidth="1.5">
                           <rect x="4" y="11" width="16" height="10" rx="2" />
                           <path d="M8 11V8a4 4 0 1 1 8 0v3" />
                         </svg>
                       )}
-                      <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: '0.6rem', fontWeight: '500', letterSpacing: '0.2em' }}>
-                        {isMystery ? 'EXCLUSIVE' : 'LOCKED'}
-                      </span>
+                      {!isMystery && (
+                        <span style={{ color: `rgba(255,255,255,${0.45 + (progress / 100) * 0.2})`, fontSize: '0.65rem', fontWeight: '600', letterSpacing: '0.2em' }}>
+                          LOCKED
+                        </span>
+                      )}
                     </div>
                   )}
 
@@ -1191,12 +1307,12 @@ const PrizeRail = ({
                 {/* Content */}
                 <div style={{
                   position: 'relative',
-                  padding: isMobile ? '18px' : '22px',
-                  paddingTop: isMobile ? '22px' : '26px',
-                  marginTop: '-4px', // Overlap with image area to hide any seam
+                  padding: isMobile ? '14px' : '16px',
+                  paddingTop: 0,
+                  marginTop: 0,
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '12px',
+                  gap: '10px',
                   zIndex: 4,
                   background: isLocked
                     ? '#050507'
@@ -1493,6 +1609,27 @@ const PrizeRail = ({
           25% { transform: translate(-0.5px, 0.3px); }
           50% { transform: translate(0.5px, -0.3px); }
           75% { transform: translate(-0.3px, -0.5px); }
+        }
+        .gold-text-shimmer {
+          background: radial-gradient(
+            ellipse 100% 100% at var(--gold-x, 50%) var(--gold-y, 50%),
+            #fffef0 0%,
+            #fff8dc 8%,
+            #ffd700 20%,
+            #ffcc00 35%,
+            #daa520 50%,
+            #b8860b 70%,
+            #8b6914 100%
+          );
+          -webkit-background-clip: text;
+          -moz-background-clip: text;
+          background-clip: text;
+          -webkit-text-fill-color: transparent;
+          -moz-text-fill-color: transparent;
+          color: transparent;
+          opacity: var(--gold-opacity, 0);
+          text-shadow: var(--gold-glow, none);
+          transition: opacity 0.08s ease-out;
         }
       `}</style>
     </div>

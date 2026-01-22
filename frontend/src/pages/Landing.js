@@ -18,12 +18,10 @@ const Landing = () => {
   const [scanLinePos, setScanLinePos] = useState(0);
   const [filmGrain, setFilmGrain] = useState([]);
   const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
-  const [ripples, setRipples] = useState([]);
   const [flickerOpacity, setFlickerOpacity] = useState(1);
   const [logoGlow, setLogoGlow] = useState(0.5);
 
   const containerRef = useRef(null);
-  const rippleIdRef = useRef(0);
 
   // Capture episode ID from URL
   useEffect(() => {
@@ -94,27 +92,6 @@ const Landing = () => {
     setMousePos({ x, y });
   }, []);
 
-  // Create ripple on click
-  const handleClick = useCallback((e) => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-
-    const newRipple = {
-      id: rippleIdRef.current++,
-      x,
-      y,
-      startTime: Date.now(),
-    };
-    setRipples(prev => [...prev, newRipple]);
-
-    // Remove ripple after animation
-    setTimeout(() => {
-      setRipples(prev => prev.filter(r => r.id !== newRipple.id));
-    }, 1500);
-  }, []);
-
   const handleOpenModal = (mode) => {
     setModalMode(mode);
     setShowModal(true);
@@ -135,7 +112,6 @@ const Landing = () => {
       <div
         ref={containerRef}
         onMouseMove={handleMouseMove}
-        onClick={handleClick}
         style={{
           position: 'fixed',
           inset: 0,
@@ -279,34 +255,6 @@ const Landing = () => {
           transition: 'left 0.3s ease-out, top 0.3s ease-out',
           zIndex: 1,
         }} />
-
-        {/* WebGL-style Ripples */}
-        {ripples.map(ripple => {
-          const age = (Date.now() - ripple.startTime) / 1000;
-          const size = age * 800;
-          const opacity = Math.max(0, 1 - age / 1.5);
-          return (
-            <div
-              key={ripple.id}
-              style={{
-                position: 'absolute',
-                left: `${ripple.x}%`,
-                top: `${ripple.y}%`,
-                transform: 'translate(-50%, -50%)',
-                width: `${size}px`,
-                height: `${size}px`,
-                borderRadius: '50%',
-                border: `1px solid rgba(255, 220, 180, ${opacity * 0.3})`,
-                boxShadow: `
-                  0 0 20px rgba(255, 220, 180, ${opacity * 0.1}),
-                  inset 0 0 30px rgba(255, 220, 180, ${opacity * 0.05})
-                `,
-                pointerEvents: 'none',
-                zIndex: 2,
-              }}
-            />
-          );
-        })}
 
         {/* Screen edge highlight - 3D depth */}
         <div style={{

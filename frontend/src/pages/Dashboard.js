@@ -791,7 +791,7 @@ const Dashboard = () => {
             lineHeight: '1.5',
             fontFamily: 'Inter, -apple-system, sans-serif',
           }}>
-            Tell us more about yourself to personalize your experience
+            Tell us more about yourself to personalise your experience
           </p>
 
           {/* Complete profile button */}
@@ -1518,25 +1518,31 @@ const Dashboard = () => {
         {confirmRedeemPrize && (() => {
           // Get the prize image for the modal
           const getPrizeImage = () => {
-            if (confirmRedeemPrize.prize_type === 'discount_code') {
-              return 'https://thediary.com/cdn/shop/files/1_DIARY_PopUpCardsWhite.png?v=1764327518&width=800';
+            if (confirmRedeemPrize.name?.includes('10%')) {
+              return 'https://storage.googleapis.com/doac-perks/10percent.png';
             }
-            if (confirmRedeemPrize.name.includes('Vol. 1') || confirmRedeemPrize.name.includes('Vol 1')) {
-              return 'https://thediary.com/cdn/shop/files/1_e87b669d-04ab-4f85-81c8-df353bbb2188.png?v=1749210128&width=700';
+            if (confirmRedeemPrize.name?.includes('25%')) {
+              return 'https://storage.googleapis.com/doac-perks/25percent.png';
             }
-            if (confirmRedeemPrize.name.includes('Vol. 2') || confirmRedeemPrize.name.includes('Vol 2')) {
-              return 'https://thediary.com/cdn/shop/files/1_b75fbc90-9bfe-49f2-baf5-3767c7992627.png?v=1762444332&width=700';
+            if (confirmRedeemPrize.name?.includes('50%')) {
+              return 'https://storage.googleapis.com/doac-perks/50percent.png';
             }
-            if (confirmRedeemPrize.name.includes('Game Edition') || confirmRedeemPrize.name.includes('Vol. 3')) {
-              return 'https://thediary.com/cdn/shop/files/CC3_Web_Image_3.jpg?v=1762859458&width=1000';
+            if (confirmRedeemPrize.name?.includes('Vol. 1') || confirmRedeemPrize.name?.includes('Vol 1')) {
+              return 'https://storage.googleapis.com/doac-perks/convo1.png';
             }
-            if (confirmRedeemPrize.name.includes('1% Diary') || confirmRedeemPrize.name.includes('Diary')) {
-              return 'https://thediary.com/cdn/shop/files/No_matter_your_goal_1_d1605690-ab79-45f3-a83d-f9d21e8223bc.png?v=1763725505&width=1000';
+            if (confirmRedeemPrize.name?.includes('Vol. 2') || confirmRedeemPrize.name?.includes('Vol 2')) {
+              return 'https://storage.googleapis.com/doac-perks/convo2.png';
+            }
+            if (confirmRedeemPrize.name?.includes('Game Edition') || confirmRedeemPrize.name?.includes('Vol. 3')) {
+              return 'https://storage.googleapis.com/doac-perks/convoGE.png';
+            }
+            if (confirmRedeemPrize.name?.includes('1% Diary') || confirmRedeemPrize.name?.includes('Diary')) {
+              return 'https://storage.googleapis.com/doac-perks/1percent.png';
             }
             if (confirmRedeemPrize.prize_type === 'mystery') {
               return 'https://storage.googleapis.com/doac-perks/edited-photo.webp';
             }
-            return 'https://thediary.com/cdn/shop/files/1_DIARY_PopUpCardsWhite.png?v=1764327518&width=800';
+            return 'https://storage.googleapis.com/doac-perks/10percent.png';
           };
 
           return (
@@ -1654,8 +1660,8 @@ const Dashboard = () => {
               <div
                 style={{
                   background: '#000',
-                  borderRadius: '16px',
-                  width: isMobile ? '260px' : '320px',
+                  borderRadius: '20px',
+                  width: isMobile ? '280px' : '320px',
                   overflow: 'hidden',
                   border: '2px solid rgba(255, 190, 80, 0.9)',
                   /* Box-shadows shift with glow direction */
@@ -1682,7 +1688,7 @@ const Dashboard = () => {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    borderRadius: '14px',
+                    borderRadius: '18px',
                     pointerEvents: 'none',
                     zIndex: 10,
                     overflow: 'hidden'
@@ -1718,7 +1724,7 @@ const Dashboard = () => {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    borderRadius: '14px',
+                    borderRadius: '18px',
                     pointerEvents: 'none',
                     zIndex: 11,
                     boxShadow: `
@@ -1729,7 +1735,7 @@ const Dashboard = () => {
                   }}
                 />
 
-                {/* Prize Image - Square like carousel cards */}
+                {/* Prize Image - Matches carousel card proportions */}
                 <div style={{
                   width: '100%',
                   aspectRatio: '1',
@@ -1743,7 +1749,8 @@ const Dashboard = () => {
                     style={{
                       width: '100%',
                       height: '100%',
-                      objectFit: 'cover'
+                      objectFit: 'cover',
+                      objectPosition: 'center 20%'
                     }}
                   />
                   <div style={{
@@ -1751,14 +1758,15 @@ const Dashboard = () => {
                     bottom: 0,
                     left: 0,
                     right: 0,
-                    height: '80px',
+                    height: '10%',
                     background: 'linear-gradient(transparent, #000)'
                   }} />
                 </div>
 
                 {/* Content */}
                 <div style={{
-                  padding: isMobile ? '16px 20px 24px' : '20px 24px 28px',
+                  padding: isMobile ? '12px 16px 20px' : '14px 20px 24px',
+                  paddingTop: 0,
                   textAlign: 'center'
                 }}>
                   <h3 style={{
