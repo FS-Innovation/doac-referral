@@ -28,6 +28,7 @@ const ReferralLanding = () => {
   const [error, setError] = useState(null);
   const [redirecting, setRedirecting] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [clickReady, setClickReady] = useState(false); // Track if referral click has been registered
 
   const pageLoadTime = useRef(Date.now());
   const hasTrackedPageLoad = useRef(false);
@@ -109,13 +110,18 @@ const ReferralLanding = () => {
         trackReferralEpisodeViewed(code, response.data.youtube_video_id, response.data.title);
       }
 
-      // BACKGROUND: Track the referral click (requires fingerprints, can be slow)
-      // Don't block page render for this - fraud detection happens server-side
+      // Track the referral click (requires fingerprints, can be slow)
+      // IMPORTANT: Must complete before user can click platform buttons
       console.log('Tracking referral click for code:', code);
-      api.get(`/referral/${code}`).catch(err => {
-        // Silent fail - tracking is non-critical, page already loaded
+      try {
+        await api.get(`/referral/${code}`);
+        console.log('Referral click tracked successfully');
+        setClickReady(true);
+      } catch (err) {
+        // Even if tracking fails, allow the user to proceed
         console.warn('Failed to track referral click:', err.message);
-      });
+        setClickReady(true); // Still allow clicks, just won't award points
+      }
 
     } catch (err) {
       console.error('Failed to load episode:', err);
@@ -127,6 +133,10 @@ const ReferralLanding = () => {
 
   const handlePlatformClick = async (platform) => {
     if (redirecting) return;
+    if (!clickReady) {
+      console.log('Click not ready yet, waiting for referral tracking...');
+      return; // Silently ignore - buttons should be disabled anyway
+    }
     setRedirecting(true);
 
     // Calculate time on page before click
@@ -358,24 +368,24 @@ const ReferralLanding = () => {
             {/* YouTube Button */}
             <button
               onClick={() => handlePlatformClick('youtube')}
-              disabled={redirecting}
+              disabled={!clickReady || redirecting}
               style={{
-                background: redirecting ? '#333' : 'linear-gradient(135deg, #FF0000 0%, #CC0000 100%)',
+                background: (!clickReady || redirecting) ? '#333' : 'linear-gradient(135deg, #FF0000 0%, #CC0000 100%)',
                 border: 'none',
                 color: '#FFF',
                 padding: isMobile ? '12px 8px' : '14px 12px',
                 borderRadius: '10px',
                 fontSize: isMobile ? '0.8rem' : '0.875rem',
                 fontWeight: '600',
-                cursor: redirecting ? 'not-allowed' : 'pointer',
+                cursor: (!clickReady || redirecting) ? 'not-allowed' : 'pointer',
                 transition: 'all 0.2s ease',
                 display: 'flex',
                 flexDirection: isMobile ? 'column' : 'row',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: isMobile ? '4px' : '8px',
-                opacity: redirecting ? 0.5 : 1,
-                boxShadow: redirecting ? 'none' : '0 4px 12px rgba(255, 0, 0, 0.25)',
+                opacity: (!clickReady || redirecting) ? 0.5 : 1,
+                boxShadow: (!clickReady || redirecting) ? 'none' : '0 4px 12px rgba(255, 0, 0, 0.25)',
               }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -387,24 +397,24 @@ const ReferralLanding = () => {
             {/* Spotify Button */}
             <button
               onClick={() => handlePlatformClick('spotify')}
-              disabled={redirecting}
+              disabled={!clickReady || redirecting}
               style={{
-                background: redirecting ? '#333' : 'linear-gradient(135deg, #1DB954 0%, #1AA34A 100%)',
+                background: (!clickReady || redirecting) ? '#333' : 'linear-gradient(135deg, #1DB954 0%, #1AA34A 100%)',
                 border: 'none',
                 color: '#FFF',
                 padding: isMobile ? '12px 8px' : '14px 12px',
                 borderRadius: '10px',
                 fontSize: isMobile ? '0.8rem' : '0.875rem',
                 fontWeight: '600',
-                cursor: redirecting ? 'not-allowed' : 'pointer',
+                cursor: (!clickReady || redirecting) ? 'not-allowed' : 'pointer',
                 transition: 'all 0.2s ease',
                 display: 'flex',
                 flexDirection: isMobile ? 'column' : 'row',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: isMobile ? '4px' : '8px',
-                opacity: redirecting ? 0.5 : 1,
-                boxShadow: redirecting ? 'none' : '0 4px 12px rgba(29, 185, 84, 0.25)',
+                opacity: (!clickReady || redirecting) ? 0.5 : 1,
+                boxShadow: (!clickReady || redirecting) ? 'none' : '0 4px 12px rgba(29, 185, 84, 0.25)',
               }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -416,24 +426,24 @@ const ReferralLanding = () => {
             {/* Apple Podcasts Button */}
             <button
               onClick={() => handlePlatformClick('apple')}
-              disabled={redirecting}
+              disabled={!clickReady || redirecting}
               style={{
-                background: redirecting ? '#333' : 'linear-gradient(135deg, #A259FF 0%, #8B44E6 100%)',
+                background: (!clickReady || redirecting) ? '#333' : 'linear-gradient(135deg, #A259FF 0%, #8B44E6 100%)',
                 border: 'none',
                 color: '#FFF',
                 padding: isMobile ? '12px 8px' : '14px 12px',
                 borderRadius: '10px',
                 fontSize: isMobile ? '0.8rem' : '0.875rem',
                 fontWeight: '600',
-                cursor: redirecting ? 'not-allowed' : 'pointer',
+                cursor: (!clickReady || redirecting) ? 'not-allowed' : 'pointer',
                 transition: 'all 0.2s ease',
                 display: 'flex',
                 flexDirection: isMobile ? 'column' : 'row',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: isMobile ? '4px' : '8px',
-                opacity: redirecting ? 0.5 : 1,
-                boxShadow: redirecting ? 'none' : '0 4px 12px rgba(162, 89, 255, 0.25)',
+                opacity: (!clickReady || redirecting) ? 0.5 : 1,
+                boxShadow: (!clickReady || redirecting) ? 'none' : '0 4px 12px rgba(162, 89, 255, 0.25)',
               }}
             >
               <svg width="18" height="18" viewBox="0 0 300 300" fill="none">

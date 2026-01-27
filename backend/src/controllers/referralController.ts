@@ -268,9 +268,10 @@ export const trackReferralClick = async (req: Request, res: Response) => {
     let effectiveDeviceId = deviceId;
     if (!deviceId || deviceId.length < 10) {
       // Generate a server-side temporary ID for this session
+      // IMPORTANT: Must be deterministic (no Date.now()) so awardPoints can find the pending click
       const crypto = require('crypto');
       effectiveDeviceId = crypto.createHash('sha256')
-        .update(`${ipAddress}:${userAgent}:${Date.now()}`)
+        .update(`${ipAddress}:${userAgent}`)
         .digest('hex').substring(0, 36);
       fraudFlags.push('empty_device_id:server_generated');
       confidenceScore -= 10;
@@ -399,6 +400,11 @@ export const trackReferralClick = async (req: Request, res: Response) => {
 
       // Store pending click data in Redis (10 min TTL)
       const pendingClickKey = `pending:${code}:${effectiveDeviceId}`;
+      console.log(`💾 Storing pending click: ${pendingClickKey}`);
+      console.log(`   deviceId from header: "${deviceId}" (length: ${deviceId.length})`);
+      console.log(`   effectiveDeviceId: "${effectiveDeviceId}"`);
+      console.log(`   IP: ${ipAddress}, UA: ${userAgent.substring(0, 50)}...`);
+
       await redisClient.setex(
         pendingClickKey,
         600,
@@ -549,13 +555,14 @@ export const awardPoints = async (req: Request, res: Response) => {
     const browserFingerprint = req.get('x-browser-fingerprint') || '';
 
     // Handle empty deviceId same as in trackReferralClick
+    // IMPORTANT: Must use same deterministic hash (no Date.now()) to match the pending click key
     let effectiveDeviceId = deviceId;
     if (!deviceId || deviceId.length < 10) {
       const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
       const userAgent = req.get('user-agent') || 'unknown';
       const crypto = require('crypto');
       effectiveDeviceId = crypto.createHash('sha256')
-        .update(`${ipAddress}:${userAgent}:${Date.now()}`)
+        .update(`${ipAddress}:${userAgent}`)
         .digest('hex').substring(0, 36);
     }
 
@@ -563,21 +570,30 @@ export const awardPoints = async (req: Request, res: Response) => {
     // CRITICAL: Delete pending key FIRST to prevent race condition
     // ========================================================================
     const pendingClickKey = `pending:${code}:${effectiveDeviceId}`;
+    console.log(`🔍 Looking for pending click: ${pendingClickKey}`);
+    console.log(`   deviceId from header: "${deviceId}" (length: ${deviceId.length})`);
+    console.log(`   effectiveDeviceId: "${effectiveDeviceId}"`);
+
     const pendingData = await redisClient.get(pendingClickKey);
 
     if (!pendingData) {
       // Also try with original deviceId if different
       if (effectiveDeviceId !== deviceId && deviceId) {
+        console.log(`   Trying alternate key: pending:${code}:${deviceId}`);
         const altPendingData = await redisClient.get(`pending:${code}:${deviceId}`);
         if (altPendingData) {
           // Found with original deviceId
+          console.log(`   ✅ Found with alternate deviceId`);
           return processAward(req, res, code, platform, episodeId, timeOnPage, `pending:${code}:${deviceId}`, altPendingData);
         }
       }
+      console.log(`   ❌ No pending click found for any deviceId variant`);
       return res.status(400).json({
         error: 'No pending click found. Please use your referral link first.'
       });
     }
+
+    console.log(`   ✅ Found pending click data`);
 
     return processAward(req, res, code, platform, episodeId, timeOnPage, pendingClickKey, pendingData);
   } catch (error) {
